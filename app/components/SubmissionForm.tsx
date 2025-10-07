@@ -5,7 +5,7 @@ import { useState } from "react";
 export default function SubmissionForm() {
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [email, setEmail] = useState("");
-  const [priority, setPriority] = useState(false);
+  const [priority, setPriority] = useState(false); // New priority state
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -29,7 +29,7 @@ export default function SubmissionForm() {
         setSubmitted(true);
         setSoundcloudLink("");
         setEmail("");
-        setPriority(false); // reset checkbox after submit
+        setPriority(false); // Reset checkbox after submit
       } else {
         setError(data.error || "Failed to submit track.");
       }
@@ -41,10 +41,7 @@ export default function SubmissionForm() {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-4 mt-4 max-w-xl mx-auto p-4"
-    >
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4 max-w-xl mx-auto p-4">
       <label className="flex flex-col gap-1">
         SoundCloud Link:
         <input
@@ -85,13 +82,12 @@ export default function SubmissionForm() {
         {loading ? "Submitting..." : "Submit Track"}
       </button>
 
-      {submitted && (
-        <p className="text-green-600 font-semibold mt-2">We Got Your Track!</p>
-      )}
+      {submitted && <p className="text-green-600 font-semibold mt-2">We Got Your Track!</p>}
       {error && <p className="text-red-600 font-semibold mt-2">{error}</p>}
     </form>
   );
 }
+
 
 
 

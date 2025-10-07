@@ -1,15 +1,14 @@
-import admin from "firebase-admin";
+import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import path from "path";
+import serviceAccountJson from "./xlnt-feedback-submission-b61b0-firebase-adminsdk-fbsvc-4bb22f81d0.json";
 
-if (!admin.apps.length) {
-  const serviceAccount = require(path.resolve("./firebase/serviceAccountKey.json"));
+const serviceAccount = serviceAccountJson as Record<string, any>;
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
+const app = initializeApp({
+  credential: cert(serviceAccount),
+});
 
-const db = getFirestore();
+const db = getFirestore(app);
 
 export { db };
+

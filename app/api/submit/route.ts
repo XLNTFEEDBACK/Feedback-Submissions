@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "../../firebase/firebaseadmin"; // <- Admin SDK import
+import { db } from "../../firebase/firebaseadmin"; // Admin SDK import
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,16 +12,18 @@ export async function POST(req: NextRequest) {
     const submission = {
       soundcloudLink,
       email: email || "",
-      priority: !!priority,  // in case you add priority checkbox later
+      priority: !!priority,  // ensures boolean
       timestamp: new Date(),
     };
 
+    // Add to Firestore using Admin SDK
     await db.collection("submissions").add(submission);
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error submitting track:", err);
     return NextResponse.json({ success: false, error: "Failed to submit track." });
   }
 }
+
 
