@@ -1,105 +1,82 @@
 "use client";
 
 import { useState } from "react";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../firebase/firebase";
-import { useRouter } from "next/navigation";
 
 export default function SubmissionForm() {
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [email, setEmail] = useState("");
-  const [priority, setPriority] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState(""); // <-- new
-  const router = useRouter();
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!soundcloudLink) return;
-    setIsSubmitting(true);
+    setLoading(true);
+    setError("");
+    setSubmitted(false);
 
     try {
-      // Add submission to Firestore
-      await addDoc(collection(db, "submissions"), {
-        soundcloudLink,
-        email,
-        timestamp: serverTimestamp(),
-        priority,
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ soundcloudLink, email }),
       });
 
-      // Reset form fields
-      setSoundcloudLink("");
-      setEmail("");
-      setPriority(false);
+      const data = await res.json();
 
-      // Show success message
-      setSuccessMessage("We Got Your Track!");
-
-      // Wait 1.5 seconds, then redirect
-      setTimeout(() => {
-        router.push("/queue");
-      }, 1500);
-    } catch (error) {
-      console.error("Error submitting:", error);
+      if (data.success) {
+        setSubmitted(true);
+        setSoundcloudLink("");
+        setEmail("");
+      } else {
+        setError(data.error || "Failed to submit track.");
+      }
+    } catch (err) {
+      setError("Failed to submit track.");
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="max-w-2xl mx-auto mt-6 p-4 bg-white rounded shadow flex flex-col gap-4"
-    >
-      <label>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4 max-w-xl mx-auto p-4">
+      <label className="flex flex-col gap-1">
         SoundCloud Link:
         <input
-          type="text"
+          type="url"
           value={soundcloudLink}
           onChange={(e) => setSoundcloudLink(e.target.value)}
-          className="mt-1 p-2 border rounded w-full"
-          placeholder="https://soundcloud.com/..."
           required
+          className="border rounded px-2 py-1"
+          placeholder="https://soundcloud.com/your-track"
         />
       </label>
 
-      <label>
-        Email (optional):
+      <label className="flex flex-col gap-1">
+        Your Email (optional):
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 p-2 border rounded w-full"
-          placeholder="your@email.com"
-        />
-      </label>
-
-      <label className="flex items-center gap-2">
-        Priority (for members/donors):
-        <input
-          type="checkbox"
-          checked={priority}
-          onChange={(e) => setPriority(e.target.checked)}
+          className="border rounded px-2 py-1"
+          placeholder="example@example.com"
         />
       </label>
 
       <button
         type="submit"
-        disabled={isSubmitting}
-        className={`py-2 px-4 rounded text-white ${
-          isSubmitting ? "bg-gray-400" : "bg-orange-500 hover:bg-orange-600"
-        }`}
+        disabled={loading}
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
       >
-        {isSubmitting ? "Submitting..." : "Submit"}
+        {loading ? "Submitting..." : "Submit Track"}
       </button>
 
-      {successMessage && (
-        <p className="mt-2 text-green-600 font-semibold">{successMessage}</p>
-      )}
+      {submitted && <p className="text-green-600 font-semibold mt-2">We Got Your Track!</p>}
+      {error && <p className="text-red-600 font-semibold mt-2">{error}</p>}
     </form>
   );
 }
+
 
 
 
