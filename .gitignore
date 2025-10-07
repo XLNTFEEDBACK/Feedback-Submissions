@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Firebase Admin JSON key
+app/firebase/xlnt-feedback-submission-b61b0-firebase-adminsdk-fbsvc-4bb22f81d0.json

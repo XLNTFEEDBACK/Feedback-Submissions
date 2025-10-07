@@ -1,25 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "../../firebase/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../firebase/firebaseAdmin"; // <- Admin SDK import
 
 export async function POST(req: NextRequest) {
-  const data = await req.json();
-  const { soundcloudLink, email } = data;
-
-  if (!soundcloudLink) {
-    return NextResponse.json({ error: "Missing SoundCloud link" }, { status: 400 });
-  }
-
   try {
-    await addDoc(collection(db, "submissions"), {
+    const { soundcloudLink, email, priority } = await req.json();
+
+    if (!soundcloudLink) {
+      return NextResponse.json({ success: false, error: "Missing SoundCloud link." });
+    }
+
+    const submission = {
       soundcloudLink,
-      email: email || null,
-      priority: false,          // normal users cannot set priority
-      timestamp: serverTimestamp()
-    });
+      email: email || "",
+      priority: !!priority,  // in case you add priority checkbox later
+      timestamp: new Date(),
+    };
+
+    await db.collection("submissions").add(submission);
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    return NextResponse.json({ error: "Failed to submit track" }, { status: 500 });
+  } catch (err: any) {
+    console.error("Error submitting track:", err);
+    return NextResponse.json({ success: false, error: "Failed to submit track." });
   }
 }
+
