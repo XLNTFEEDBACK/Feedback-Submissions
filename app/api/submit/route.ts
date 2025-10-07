@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "../../firebase/firebaseAdmin"; // <- Admin SDK import
+import { db } from "../../firebase/firebaseadmin"; // <- Admin SDK import
 
 export async function POST(req: NextRequest) {
   try {
