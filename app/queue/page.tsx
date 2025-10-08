@@ -52,19 +52,9 @@ export default function QueuePage() {
         submissions.map((sub) => (
           <div
             key={sub.id}
-            className="mb-4 p-4 border rounded flex flex-col gap-2"
+            className="mb-4"
           >
-            <p><strong>Email:</strong> {sub.email || "N/A"}</p>
-            <p>
-              <strong>Link:</strong>{" "}
-              <a
-                href={sub.soundcloudLink}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {sub.soundcloudLink}
-              </a>
-            </p>
+        
             <iframe
               width="100%"
               height="166"
