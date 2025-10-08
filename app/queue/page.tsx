@@ -13,6 +13,11 @@ interface Submission {
 export default function QueuePage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
 
+  // Simple admin check
+  const adminEmail = "xlntfeedback@gmail.com";
+  const currentUserEmail = "xlntfeedback@gmail.com"; // For testing; replace with real user auth later
+  const isAdmin = currentUserEmail === adminEmail;
+
   useEffect(() => {
     // Updated query: order by priority first, then timestamp
     const q = query(
