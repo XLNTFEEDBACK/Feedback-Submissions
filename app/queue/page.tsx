@@ -49,12 +49,12 @@ export default function QueuePage() {
       {submissions.length === 0 ? (
         <p>No submissions yet.</p>
       ) : (
-        submissions.map((sub) => (
-          <div
-            key={sub.id}
-            className="mb-4"
-          >
-        
+        submissions.map((sub, index) => (
+          <div key={sub.id} className="mb-6 flex items-center gap-3">
+            {/* Queue number */}
+            <span className="font-bold text-lg">{index + 1}.</span>
+
+            {/* SoundCloud player */}
             <iframe
               width="100%"
               height="166"
@@ -71,4 +71,5 @@ export default function QueuePage() {
     </div>
   );
 }
+
 
