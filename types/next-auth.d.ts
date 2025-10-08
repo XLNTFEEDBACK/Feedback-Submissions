@@ -5,6 +5,9 @@ declare module "next-auth" {
     user?: DefaultSession["user"] & {
       role?: "admin" | "user";
       isAdmin?: boolean;
+      isMember?: boolean;
+      membershipTier?: string | null;
+      youtubeChannelId?: string | null;
     };
   }
 }
@@ -13,6 +16,10 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: "admin" | "user";
     isAdmin?: boolean;
+    isMember?: boolean;
+    membershipTier?: string | null;
+    youtubeChannelId?: string | null;
+    membershipCheckedAt?: number;
   }
 }
 

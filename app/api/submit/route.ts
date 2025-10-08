@@ -20,15 +20,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing SoundCloud link." });
     }
 
+    const isAdmin = session.user?.isAdmin ?? false;
+    const isMember = session.user?.isMember ?? false;
+    const membershipTier = session.user?.membershipTier ?? null;
+
+    const requestedPriority = Boolean(priority);
+    const derivedPriority = isMember || (isAdmin && requestedPriority);
+
     const now = Date.now();
-    const orderBaseline = priority ? now - 1_000_000_000 : now;
+    const orderBaseline = derivedPriority ? now - 1_000_000_000 : now;
 
     const submission = {
       soundcloudLink,
       email: session.user?.email || "",
-      priority: !!priority,  // ensures boolean
+      priority: derivedPriority,
       timestamp: new Date(),
       order: orderBaseline,
+      isMember,
+      membershipTier,
+      youtubeChannelId: session.user?.youtubeChannelId ?? null,
+      submittedByRole: session.user?.role ?? "user",
     };
 
     // Add to Firestore using Admin SDK

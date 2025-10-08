@@ -6,18 +6,14 @@ import { signIn, signOut, useSession } from "next-auth/react";
 export default function SubmissionForm() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.isAdmin ?? false;
+  const isMember = session?.user?.isMember ?? false;
+  const membershipTier = session?.user?.membershipTier ?? null;
+  const email = session?.user?.email ?? "";
   const [soundcloudLink, setSoundcloudLink] = useState("");
-  const [email, setEmail] = useState("");
   const [priority, setPriority] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (session?.user?.email) {
-      setEmail(session.user.email);
-    }
-  }, [session?.user?.email]);
 
   useEffect(() => {
     if (!isAdmin && priority) {
@@ -32,10 +28,17 @@ export default function SubmissionForm() {
     setSubmitted(false);
 
     try {
+      const payload: Record<string, unknown> = {
+        soundcloudLink,
+      };
+      if (isAdmin) {
+        payload.priority = priority;
+      }
+
       const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ soundcloudLink, email, priority }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -43,7 +46,6 @@ export default function SubmissionForm() {
       if (data.success) {
         setSubmitted(true);
         setSoundcloudLink("");
-        setEmail("");
         setPriority(false);
 
         // Redirect to queue page
@@ -107,6 +109,11 @@ export default function SubmissionForm() {
               (standard access)
             </span>
           )}
+          {isMember && (
+            <span className="ml-2 inline-flex items-center rounded bg-purple-700 px-2 py-0.5 text-xs font-semibold uppercase">
+              Member{membershipTier ? ` – ${membershipTier}` : ""}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/" })}
@@ -148,9 +155,13 @@ export default function SubmissionForm() {
               onChange={(e) => setPriority(e.target.checked)}
             />
           </label>
+        ) : isMember ? (
+          <p className="text-sm text-purple-300">
+            You&apos;re a YouTube member! Your submission jumps the queue automatically.
+          </p>
         ) : (
           <p className="text-sm text-gray-400">
-            Priority queue access is available to admins only.
+            Become a YouTube member of XLNTSOUND to get priority placement.
           </p>
         )}
 

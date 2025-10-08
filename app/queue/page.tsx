@@ -11,6 +11,10 @@ interface Submission {
   priority?: boolean;
   order?: number;
   timestamp?: { toMillis?: () => number } | null;
+  isMember?: boolean;
+  membershipTier?: string | null;
+  youtubeChannelId?: string | null;
+  submittedByRole?: string;
 }
 
 export default function QueuePage() {
@@ -48,6 +52,10 @@ export default function QueuePage() {
         priority: doc.data().priority,
         order: doc.data().order,
         timestamp: doc.data().timestamp ?? null,
+        isMember: doc.data().isMember,
+        membershipTier: doc.data().membershipTier ?? null,
+        youtubeChannelId: doc.data().youtubeChannelId ?? null,
+        submittedByRole: doc.data().submittedByRole,
       })) as Submission[];
       setSubmissions(subs);
     });
@@ -206,6 +214,16 @@ export default function QueuePage() {
               {sub.email && (
                 <span>
                   Submitted by: <span className="text-white">{sub.email}</span>
+                </span>
+              )}
+              {sub.isMember && (
+                <span className="inline-flex w-fit items-center gap-1 rounded bg-purple-700 px-2 py-1 text-xs font-semibold uppercase text-white">
+                  Member
+                  {sub.membershipTier && (
+                    <span className="normal-case text-white/80">
+                      {sub.membershipTier}
+                    </span>
+                  )}
                 </span>
               )}
               {sub.priority && (
