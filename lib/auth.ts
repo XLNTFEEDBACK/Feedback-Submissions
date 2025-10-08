@@ -12,15 +12,19 @@ const adminEmails =
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean) ?? [];
 
-const adminChannelIds =
+const adminChannelIdsRaw =
   process.env.ADMIN_CHANNEL_IDS?.split(",")
-    .map((id) => id.trim().toLowerCase())
+    .map((id) => id.trim())
     .filter(Boolean) ?? [];
+
+const adminChannelIds = adminChannelIdsRaw.map((id) => id.toLowerCase());
 
 const MEMBERSHIP_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const SUBSCRIPTION_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-const targetChannelId =
-  process.env.YOUTUBE_TARGET_CHANNEL_ID?.trim().toLowerCase() ?? null;
+const targetChannelIdRaw =
+  process.env.YOUTUBE_TARGET_CHANNEL_ID?.trim() ?? null;
+const targetChannelIdNormalized =
+  targetChannelIdRaw?.toLowerCase() ?? null;
 
 const assignMembershipFlags = async (token: JWT) => {
   const channelId = token.youtubeChannelId as string | null | undefined;
@@ -87,11 +91,11 @@ export const authOptions: NextAuthOptions = {
           console.error("[auth] Failed to get user channel ID", error);
           token.youtubeChannelId = null;
         }
-        if (targetChannelId) {
+        if (targetChannelIdRaw) {
           try {
             const subscriptionStatus = await isUserSubscribedToChannel(
               account.access_token,
-              targetChannelId
+              targetChannelIdRaw
             );
             if (subscriptionStatus !== null) {
               token.isSubscriber = subscriptionStatus;
@@ -115,7 +119,7 @@ export const authOptions: NextAuthOptions = {
             MEMBERSHIP_REFRESH_INTERVAL_MS);
 
       const shouldRefreshSubscription =
-        targetChannelId &&
+        targetChannelIdNormalized &&
         (!token.subscriptionCheckedAt ||
           Date.now() - (token.subscriptionCheckedAt as number) >
             SUBSCRIPTION_REFRESH_INTERVAL_MS);
