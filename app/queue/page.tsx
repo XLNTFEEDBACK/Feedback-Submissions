@@ -159,24 +159,13 @@ export default function QueuePage() {
       });
   }, [submissions]);
 
-  const topFiveIds = useMemo(
-    () => sortedSubmissions.slice(0, 5).map((sub) => sub.id),
-    [sortedSubmissions]
-  );
-  const topFiveSet = useMemo(() => new Set(topFiveIds), [topFiveIds]);
-  const topFiveSetRef = useRef<Set<string>>(topFiveSet);
-
-  useEffect(() => {
-    topFiveSetRef.current = topFiveSet;
-  }, [topFiveSet]);
-
   useEffect(() => {
     const validIds = new Set(sortedSubmissions.map((sub) => sub.id));
 
     setExpandedIds((prev) => {
       const next = new Set<string>();
       prev.forEach((id) => {
-        if (validIds.has(id) && !topFiveSet.has(id)) {
+        if (validIds.has(id)) {
           next.add(id);
         }
       });
@@ -186,7 +175,17 @@ export default function QueuePage() {
     setCollapsedIds((prev) => {
       const next = new Set<string>();
       prev.forEach((id) => {
-        if (validIds.has(id) && topFiveSet.has(id)) {
+        if (validIds.has(id)) {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+
+    setPlayedIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validIds.has(id)) {
           next.add(id);
         }
       });
@@ -194,84 +193,108 @@ export default function QueuePage() {
     });
 
     setCurrentPlayingId((prev) => (prev && validIds.has(prev) ? prev : null));
-  }, [sortedSubmissions, topFiveSet]);
+  }, [sortedSubmissions]);
+
+  const AUTO_EXPANDED_COUNT = 5;
+
+  const autoExpandedIds = useMemo(() => {
+    const result = new Set<string>();
+    for (const submission of sortedSubmissions) {
+      if (result.size >= AUTO_EXPANDED_COUNT) {
+        break;
+      }
+      if (collapsedIds.has(submission.id)) {
+        continue;
+      }
+      result.add(submission.id);
+    }
+    return result;
+  }, [sortedSubmissions, collapsedIds]);
+
+  const autoExpandedRef = useRef(autoExpandedIds);
+  useEffect(() => {
+    autoExpandedRef.current = autoExpandedIds;
+  }, [autoExpandedIds]);
 
   useEffect(() => {
     setExpandedIds((prev) => {
-      const next = new Set(prev);
-      topFiveIds.forEach((id) => {
-        if (!collapsedIds.has(id)) {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (!autoExpandedIds.has(id)) {
           next.add(id);
-        } else {
-          next.delete(id);
         }
       });
       return next;
     });
-  }, [topFiveIds, collapsedIds]);
+  }, [autoExpandedIds]);
 
-  const handleToggleExpand = useCallback(
-    (id: string, isExpanded: boolean, isTopFive: boolean) => {
-      if (isTopFive) {
-        setCollapsedIds((prev) => {
-          const next = new Set(prev);
-          if (isExpanded) {
-            next.add(id);
-          } else {
-            next.delete(id);
-          }
-          return next;
-        });
-      } else {
-        setExpandedIds((prev) => {
-          const next = new Set(prev);
-          if (isExpanded) {
-            next.delete(id);
-          } else {
-            next.add(id);
-          }
-          return next;
-        });
+  const collapsedIdsRef = useRef(collapsedIds);
+  useEffect(() => {
+    collapsedIdsRef.current = collapsedIds;
+  }, [collapsedIds]);
+
+  const handleToggleExpand = useCallback((id: string, isExpanded: boolean) => {
+    const isAutoManaged =
+      autoExpandedRef.current.has(id) || collapsedIdsRef.current.has(id);
+    if (isAutoManaged) {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        if (isExpanded) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+        return next;
+      });
+    } else {
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        if (isExpanded) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+    }
+  }, []);
+
+  const handlePlay = useCallback(
+    (id: string) => {
+      if (currentPlayingId === id) {
+        return;
       }
-    },
-    []
-  );
 
-  const handlePlay = useCallback((id: string) => {
-    setCurrentPlayingId((prev) => {
-      if (prev === id) {
-        return prev;
-      }
-
-      setCollapsedIds((prevCollapsed) => {
-        const next = new Set(prevCollapsed);
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
         next.delete(id);
-        if (prev && topFiveSetRef.current.has(prev)) {
-          next.add(prev);
+        if (currentPlayingId && autoExpandedRef.current.has(currentPlayingId)) {
+          next.add(currentPlayingId);
         }
         return next;
       });
 
-      setExpandedIds((prevExpanded) => {
-        const next = new Set(prevExpanded);
-        if (prev && !topFiveSetRef.current.has(prev)) {
-          next.delete(prev);
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        if (currentPlayingId && !autoExpandedRef.current.has(currentPlayingId)) {
+          next.delete(currentPlayingId);
         }
-        if (!topFiveSetRef.current.has(id)) {
+        if (!autoExpandedRef.current.has(id)) {
           next.add(id);
         }
         return next;
       });
 
-      setPlayedIds((prevPlayed) => {
-        const next = new Set(prevPlayed);
+      setPlayedIds((prev) => {
+        const next = new Set(prev);
         next.add(id);
         return next;
       });
 
-      return id;
-    });
-  }, []);
+      setCurrentPlayingId(id);
+    },
+    [currentPlayingId]
+  );
 
   useEffect(() => {
     const submissionsRef = collection(db, "submissions");
@@ -427,12 +450,9 @@ export default function QueuePage() {
         <p className="text-white">No submissions yet.</p>
       ) : (
         sortedSubmissions.map((sub, index) => {
-          const isTopFive = topFiveSet.has(sub.id);
           const isPlaying = currentPlayingId === sub.id;
           const isExpanded =
-            isPlaying ||
-            (!collapsedIds.has(sub.id) && isTopFive) ||
-            expandedIds.has(sub.id);
+            isPlaying || autoExpandedIds.has(sub.id) || expandedIds.has(sub.id);
 
           return (
             <QueueItem
@@ -440,7 +460,6 @@ export default function QueuePage() {
               submission={sub}
               index={index}
               isExpanded={isExpanded}
-              isTopFive={isTopFive}
               isPlaying={isPlaying}
               hasPlayed={playedIds.has(sub.id)}
               onMove={handleMove}
@@ -463,7 +482,6 @@ const QueueItem = ({
   submission,
   index,
   isExpanded,
-  isTopFive,
   isPlaying,
   hasPlayed,
   onMove,
@@ -478,7 +496,6 @@ const QueueItem = ({
   submission: Submission;
   index: number;
   isExpanded: boolean;
-  isTopFive: boolean;
   isPlaying: boolean;
   hasPlayed: boolean;
   onMove: (id: string, direction: "up" | "down") => void;
@@ -486,7 +503,7 @@ const QueueItem = ({
   pendingActionId: string | null;
   isAdmin: boolean;
   total: number;
-  onToggleExpand: (id: string, isExpanded: boolean, isTopFive: boolean) => void;
+  onToggleExpand: (id: string, isExpanded: boolean) => void;
   onPlay: (id: string) => void;
   widgetReady: boolean;
 }) => {
@@ -595,21 +612,33 @@ const QueueItem = ({
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() =>
-              onToggleExpand(submission.id, isExpanded, isTopFive)
-            }
-            className="rounded border border-gray-600 px-2 py-1 text-xs uppercase text-gray-300 hover:bg-gray-800 hover:text-white"
+            onClick={() => onToggleExpand(submission.id, isExpanded)}
+            aria-label={isExpanded ? "Collapse" : "Expand"}
+            className={`flex h-8 w-8 items-center justify-center rounded border border-gray-600 text-gray-300 transition hover:bg-gray-800 hover:text-white ${
+              isExpanded ? "rotate-180" : "rotate-0"
+            }`}
           >
-            {isExpanded ? "Collapse" : "Expand"}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 3a1 1 0 0 1 .832.445l5 7a1 1 0 1 1-1.664 1.11L10 5.882 5.832 11.555a1 1 0 0 1-1.664-1.11l5-7A1 1 0 0 1 10 3Z"
+                clipRule="evenodd"
+              />
+            </svg>
           </button>
-          {submission.email && (
+          {/* {submission.email && (
             <span className="text-sm text-gray-300">
               Submitted by:{" "}
               <span className="text-white font-medium">
                 {submission.email}
               </span>
             </span>
-          )}
+          )} */}
         </div>
       </div>
 
@@ -627,7 +656,7 @@ const QueueItem = ({
           )}
           {isExpanded && (
             <span className="text-xs uppercase text-gray-500">
-              {isPlaying ? "Now Playing" : "Expanded"}
+              &nbsp;
             </span>
           )}
         </div>
