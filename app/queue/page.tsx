@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
 import { db } from "../firebase/firebase";
@@ -56,13 +56,49 @@ const getTrackDisplay = (url: string) => {
   };
 };
 
+declare global {
+  interface Window {
+    SC?: {
+      Widget: (
+        iframe: HTMLIFrameElement
+      ) => {
+        bind: (event: string, listener: () => void) => void;
+        unbind: (event: string, listener: () => void) => void;
+      };
+    };
+  }
+}
+
 export default function QueuePage() {
   const { data: session } = useSession();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
+  const [playedIds, setPlayedIds] = useState<Set<string>>(new Set());
+  const [widgetReady, setWidgetReady] = useState(false);
 
   const isAdmin = session?.user?.isAdmin ?? false;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (window.SC && window.SC.Widget) {
+      setWidgetReady(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://w.soundcloud.com/player/api.js";
+    script.async = true;
+    script.onload = () => setWidgetReady(true);
+    document.body.appendChild(script);
+    return () => {
+      script.onload = null;
+    };
+  }, []);
 
   const sortedSubmissions = useMemo(() => {
     const membershipTierRank = (submission: Submission) => {
@@ -122,6 +158,120 @@ export default function QueuePage() {
         return timeA - timeB;
       });
   }, [submissions]);
+
+  const topFiveIds = useMemo(
+    () => sortedSubmissions.slice(0, 5).map((sub) => sub.id),
+    [sortedSubmissions]
+  );
+  const topFiveSet = useMemo(() => new Set(topFiveIds), [topFiveIds]);
+  const topFiveSetRef = useRef<Set<string>>(topFiveSet);
+
+  useEffect(() => {
+    topFiveSetRef.current = topFiveSet;
+  }, [topFiveSet]);
+
+  useEffect(() => {
+    const validIds = new Set(sortedSubmissions.map((sub) => sub.id));
+
+    setExpandedIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validIds.has(id) && !topFiveSet.has(id)) {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+
+    setCollapsedIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validIds.has(id) && topFiveSet.has(id)) {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+
+    setCurrentPlayingId((prev) => (prev && validIds.has(prev) ? prev : null));
+  }, [sortedSubmissions, topFiveSet]);
+
+  useEffect(() => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      topFiveIds.forEach((id) => {
+        if (!collapsedIds.has(id)) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+      });
+      return next;
+    });
+  }, [topFiveIds, collapsedIds]);
+
+  const handleToggleExpand = useCallback(
+    (id: string, isExpanded: boolean, isTopFive: boolean) => {
+      if (isTopFive) {
+        setCollapsedIds((prev) => {
+          const next = new Set(prev);
+          if (isExpanded) {
+            next.add(id);
+          } else {
+            next.delete(id);
+          }
+          return next;
+        });
+      } else {
+        setExpandedIds((prev) => {
+          const next = new Set(prev);
+          if (isExpanded) {
+            next.delete(id);
+          } else {
+            next.add(id);
+          }
+          return next;
+        });
+      }
+    },
+    []
+  );
+
+  const handlePlay = useCallback((id: string) => {
+    setCurrentPlayingId((prev) => {
+      if (prev === id) {
+        return prev;
+      }
+
+      setCollapsedIds((prevCollapsed) => {
+        const next = new Set(prevCollapsed);
+        next.delete(id);
+        if (prev && topFiveSetRef.current.has(prev)) {
+          next.add(prev);
+        }
+        return next;
+      });
+
+      setExpandedIds((prevExpanded) => {
+        const next = new Set(prevExpanded);
+        if (prev && !topFiveSetRef.current.has(prev)) {
+          next.delete(prev);
+        }
+        if (!topFiveSetRef.current.has(id)) {
+          next.add(id);
+        }
+        return next;
+      });
+
+      setPlayedIds((prevPlayed) => {
+        const next = new Set(prevPlayed);
+        next.add(id);
+        return next;
+      });
+
+      return id;
+    });
+  }, []);
 
   useEffect(() => {
     const submissionsRef = collection(db, "submissions");
@@ -265,7 +415,7 @@ export default function QueuePage() {
         </div>
       ) : (
         <div className="text-gray-400 mb-4">
-          you have no power here
+          Sign in with an admin account to manage the queue.
         </div>
       )}
 
@@ -276,19 +426,34 @@ export default function QueuePage() {
       {sortedSubmissions.length === 0 ? (
         <p className="text-white">No submissions yet.</p>
       ) : (
-        sortedSubmissions.map((sub, index) => (
-          <QueueItem
-            key={sub.id}
-            submission={sub}
-            index={index}
-            isExpanded={index < 5}
-            onMove={handleMove}
-            onRemove={handleRemove}
-            pendingActionId={pendingActionId}
-            isAdmin={isAdmin}
-            total={sortedSubmissions.length}
-          />
-        ))
+        sortedSubmissions.map((sub, index) => {
+          const isTopFive = topFiveSet.has(sub.id);
+          const isPlaying = currentPlayingId === sub.id;
+          const isExpanded =
+            isPlaying ||
+            (!collapsedIds.has(sub.id) && isTopFive) ||
+            expandedIds.has(sub.id);
+
+          return (
+            <QueueItem
+              key={sub.id}
+              submission={sub}
+              index={index}
+              isExpanded={isExpanded}
+              isTopFive={isTopFive}
+              isPlaying={isPlaying}
+              hasPlayed={playedIds.has(sub.id)}
+              onMove={handleMove}
+              onRemove={handleRemove}
+              pendingActionId={pendingActionId}
+              isAdmin={isAdmin}
+              total={sortedSubmissions.length}
+              onToggleExpand={handleToggleExpand}
+              onPlay={handlePlay}
+              widgetReady={widgetReady}
+            />
+          );
+        })
       )}
     </div>
   );
@@ -298,23 +463,52 @@ const QueueItem = ({
   submission,
   index,
   isExpanded,
+  isTopFive,
+  isPlaying,
+  hasPlayed,
   onMove,
   onRemove,
   pendingActionId,
   isAdmin,
   total,
+  onToggleExpand,
+  onPlay,
+  widgetReady,
 }: {
   submission: Submission;
   index: number;
   isExpanded: boolean;
+  isTopFive: boolean;
+  isPlaying: boolean;
+  hasPlayed: boolean;
   onMove: (id: string, direction: "up" | "down") => void;
   onRemove: (id: string) => void;
   pendingActionId: string | null;
   isAdmin: boolean;
   total: number;
+  onToggleExpand: (id: string, isExpanded: boolean, isTopFive: boolean) => void;
+  onPlay: (id: string) => void;
+  widgetReady: boolean;
 }) => {
   const position = index + 1;
   const trackInfo = getTrackDisplay(submission.soundcloudLink);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    if (!isExpanded || !widgetReady) {
+      return;
+    }
+    const iframe = iframeRef.current;
+    if (!iframe || !(window.SC && window.SC.Widget)) {
+      return;
+    }
+    const widget = window.SC.Widget(iframe);
+    const handlePlayEvent = () => onPlay(submission.id);
+    widget.bind("play", handlePlayEvent);
+    return () => {
+      widget.unbind("play", handlePlayEvent);
+    };
+  }, [isExpanded, onPlay, submission.id, widgetReady]);
 
   const badges = [
     submission.isChannelOwner && (
@@ -384,8 +578,14 @@ const QueueItem = ({
     ),
   ].filter(Boolean);
 
+  const cardClasses = `mb-4 w-full max-w-3xl rounded-lg border p-4 transition ${
+    hasPlayed
+      ? "border-green-500 bg-green-900/40"
+      : "border-gray-800 bg-gray-900/60"
+  }`;
+
   return (
-    <div className="mb-4 w-full max-w-3xl rounded-lg border border-gray-800 bg-gray-900/60 p-4">
+    <div className={cardClasses}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-white text-lg font-semibold">
@@ -393,29 +593,41 @@ const QueueItem = ({
           </span>
           {badges}
         </div>
-        {submission.email && (
-          <span className="text-sm text-gray-300">
-            Submitted by:{" "}
-            <span className="text-white font-medium">
-              {submission.email}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() =>
+              onToggleExpand(submission.id, isExpanded, isTopFive)
+            }
+            className="rounded border border-gray-600 px-2 py-1 text-xs uppercase text-gray-300 hover:bg-gray-800 hover:text-white"
+          >
+            {isExpanded ? "Collapse" : "Expand"}
+          </button>
+          {submission.email && (
+            <span className="text-sm text-gray-300">
+              Submitted by:{" "}
+              <span className="text-white font-medium">
+                {submission.email}
+              </span>
             </span>
-          </span>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-col gap-2 text-sm text-gray-300">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <a
-            href={submission.soundcloudLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-white text-base font-semibold hover:underline"
-          >
-            {trackInfo.display}
-          </a>
           {!isExpanded && (
+            <a
+              href={submission.soundcloudLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white text-base font-semibold hover:underline"
+            >
+              {trackInfo.display}
+            </a>
+          )}
+          {isExpanded && (
             <span className="text-xs uppercase text-gray-500">
-              Collapsed preview
+              Playing…
             </span>
           )}
         </div>
@@ -430,6 +642,7 @@ const QueueItem = ({
             scrolling="no"
             frameBorder="no"
             allow="autoplay"
+            ref={iframeRef}
             src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
               submission.soundcloudLink
             )}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
