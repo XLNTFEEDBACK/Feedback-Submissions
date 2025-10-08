@@ -44,13 +44,16 @@ export default function SubmissionForm() {
   };
 
   return (
-    <div className="bg-black min-h-screen w-full flex justify-center items-start py-10">
+    <div className="bg-black min-h-screen w-full flex flex-col items-center py-10">
+      {/* Header */}
+      <header className="w-full bg-black py-6 mb-6">
+        <h1 className="text-3xl font-bold text-white text-center">XLNT FEEDBACK</h1>
+      </header>
+
       <form
         onSubmit={handleSubmit}
         className="flex flex-col gap-4 w-full max-w-xl p-6 bg-gray-900 rounded-md"
       >
-        <h1 className="text-2xl font-bold text-white mb-4">Submit Your Track</h1>
-
         <label className="flex flex-col gap-1 text-white">
           SoundCloud Link:
           <input
