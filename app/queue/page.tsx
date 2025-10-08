@@ -7,7 +7,7 @@ interface Submission {
   id: string;
   soundcloudLink: string;
   email?: string;
-  priority?: boolean; // make sure TS knows about priority
+  priority?: boolean;
 }
 
 export default function QueuePage() {
@@ -19,11 +19,10 @@ export default function QueuePage() {
   const isAdmin = currentUserEmail === adminEmail;
 
   useEffect(() => {
-    // Updated query: order by priority first, then timestamp
     const q = query(
       collection(db, "submissions"),
-      orderBy("priority", "desc"), // true first
-      orderBy("timestamp", "asc")  // oldest first within priority
+      orderBy("priority", "desc"),
+      orderBy("timestamp", "asc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -40,6 +39,13 @@ export default function QueuePage() {
   return (
     <div className="max-w-3xl mx-auto mt-10 p-4">
       <h1 className="text-2xl font-bold mb-4">Submission Queue</h1>
+
+      {isAdmin && (
+        <div className="bg-yellow-300 text-black p-2 rounded mb-4 font-semibold">
+          You are viewing as ADMIN
+        </div>
+      )}
+
       {submissions.length === 0 ? (
         <p>No submissions yet.</p>
       ) : (
