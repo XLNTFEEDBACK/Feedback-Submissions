@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { collection, onSnapshot, doc, writeBatch, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
 import { db } from "../firebase/firebase";
 
@@ -59,19 +59,18 @@ export default function QueuePage() {
     current: Submission,
     target: Submission
   ): Promise<void> => {
-    const currentOrder =
-      typeof current.order === "number"
-        ? current.order
-        : current.timestamp?.toMillis?.() ?? 0;
-    const targetOrder =
-      typeof target.order === "number"
-        ? target.order
-        : target.timestamp?.toMillis?.() ?? 0;
+    const response = await fetch("/api/queue/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        currentId: current.id,
+        targetId: target.id,
+      }),
+    });
 
-    const batch = writeBatch(db);
-    batch.update(doc(db, "submissions", current.id), { order: targetOrder });
-    batch.update(doc(db, "submissions", target.id), { order: currentOrder });
-    await batch.commit();
+    if (!response.ok) {
+      throw new Error("Failed to reorder submissions");
+    }
   };
 
   const handleMove = async (submissionId: string, direction: "up" | "down") => {
@@ -140,11 +139,17 @@ export default function QueuePage() {
       return;
     }
 
-    setActionError(null);
-
     try {
       setPendingActionId(submissionId);
-      await deleteDoc(doc(db, "submissions", submissionId));
+      setActionError(null);
+
+      const response = await fetch(`/api/queue/${submissionId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete submission");
+      }
     } catch (error) {
       console.error("Failed to remove submission", error);
       setActionError("Failed to remove submission. Please try again.");
@@ -247,5 +252,3 @@ export default function QueuePage() {
     </div>
   );
 }
-
-
