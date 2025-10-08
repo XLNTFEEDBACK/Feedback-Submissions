@@ -74,8 +74,8 @@ export default function SubmissionForm() {
       )}
 
       {showModal && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 px-4">
-          <div className="w-full max-w-md rounded-lg bg-gray-900 p-8 text-center shadow-xl border border-gray-700">
+        <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/80 px-4 pt-24">
+          <div className="w-full max-w-xl rounded-lg bg-gray-900 p-8 text-center shadow-xl border border-gray-700">
             <h2 className="text-2xl font-bold text-white mb-4">
               Sign in to submit your track
             </h2>
