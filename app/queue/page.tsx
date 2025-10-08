@@ -15,7 +15,7 @@ export default function QueuePage() {
 
   // Simple admin check
   const adminEmail = "xlntfeedback@gmail.com";
-  const currentUserEmail = "xlntfeedback@gmail.com"; // For testing; replace with real user auth later
+  const currentUserEmail = "info@xlntsound.com"; // For testing; replace with real user auth later
   const isAdmin = currentUserEmail === adminEmail;
 
   useEffect(() => {
