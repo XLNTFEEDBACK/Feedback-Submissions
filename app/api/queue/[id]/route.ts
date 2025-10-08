@@ -5,7 +5,7 @@ import { db } from "../../../firebase/firebaseAdmin";
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,7 +17,7 @@ export async function DELETE(
       );
     }
 
-    const submissionId = params.id;
+    const { id: submissionId } = await context.params;
 
     if (!submissionId) {
       return NextResponse.json(
