@@ -6,6 +6,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 export default function SubmissionForm() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.isAdmin ?? false;
+  const isChannelOwner = session?.user?.isChannelOwner ?? false;
   const isMember = session?.user?.isMember ?? false;
   const membershipTier = session?.user?.membershipTier ?? null;
   const email = session?.user?.email ?? "";
@@ -100,14 +101,18 @@ export default function SubmissionForm() {
           <span className="font-semibold">
             {session?.user?.email ?? "unknown user"}
           </span>
-          {isAdmin ? (
+          {isChannelOwner && (
+            <span className="ml-2 inline-flex items-center rounded bg-blue-600 px-2 py-0.5 text-xs font-semibold uppercase">
+              Channel Owner
+            </span>
+          )}
+          {isAdmin && (
             <span className="ml-2 inline-flex items-center rounded bg-green-700 px-2 py-0.5 text-xs font-semibold uppercase">
               Admin
             </span>
-          ) : (
-            <span className="ml-2 text-sm text-gray-400">
-              (standard access)
-            </span>
+          )}
+          {!isAdmin && !isChannelOwner && (
+            <span className="ml-2 text-sm text-gray-400">(standard access)</span>
           )}
           {isMember && (
             <span className="ml-2 inline-flex items-center rounded bg-purple-700 px-2 py-0.5 text-xs font-semibold uppercase">

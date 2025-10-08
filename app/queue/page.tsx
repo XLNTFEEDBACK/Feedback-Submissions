@@ -15,6 +15,7 @@ interface Submission {
   membershipTier?: string | null;
   youtubeChannelId?: string | null;
   submittedByRole?: string;
+  isChannelOwner?: boolean;
 }
 
 export default function QueuePage() {
@@ -56,6 +57,7 @@ export default function QueuePage() {
         membershipTier: doc.data().membershipTier ?? null,
         youtubeChannelId: doc.data().youtubeChannelId ?? null,
         submittedByRole: doc.data().submittedByRole,
+        isChannelOwner: doc.data().isChannelOwner,
       })) as Submission[];
       setSubmissions(subs);
     });
@@ -216,6 +218,17 @@ export default function QueuePage() {
                   Submitted by: <span className="text-white">{sub.email}</span>
                 </span>
               )}
+              {sub.isChannelOwner && (
+                <span className="inline-flex w-fit rounded bg-blue-600 px-2 py-1 text-xs font-semibold uppercase text-white">
+                  Channel Owner
+                </span>
+              )}
+              {!sub.isChannelOwner &&
+                sub.submittedByRole === "admin" && (
+                  <span className="inline-flex w-fit rounded bg-green-700 px-2 py-1 text-xs font-semibold uppercase text-white">
+                    Admin
+                  </span>
+                )}
               {sub.isMember && (
                 <span className="inline-flex w-fit items-center gap-1 rounded bg-purple-700 px-2 py-1 text-xs font-semibold uppercase text-white">
                   Member

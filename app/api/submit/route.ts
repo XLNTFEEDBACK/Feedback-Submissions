@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     const isAdmin = session.user?.isAdmin ?? false;
+    const isChannelOwner = session.user?.isChannelOwner ?? false;
     const isMember = session.user?.isMember ?? false;
     const membershipTier = session.user?.membershipTier ?? null;
 
@@ -38,8 +39,11 @@ export async function POST(req: NextRequest) {
       order: orderBaseline,
       isMember,
       membershipTier,
+      isChannelOwner,
       youtubeChannelId: session.user?.youtubeChannelId ?? null,
-      submittedByRole: session.user?.role ?? "user",
+      submittedByRole: isChannelOwner
+        ? "owner"
+        : session.user?.role ?? "user",
     };
 
     // Add to Firestore using Admin SDK

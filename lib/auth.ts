@@ -8,6 +8,11 @@ const adminEmails =
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean) ?? [];
 
+const adminChannelIds =
+  process.env.ADMIN_CHANNEL_IDS?.split(",")
+    .map((id) => id.trim().toLowerCase())
+    .filter(Boolean) ?? [];
+
 const MEMBERSHIP_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 const assignMembershipFlags = async (token: JWT) => {
@@ -22,6 +27,29 @@ const assignMembershipFlags = async (token: JWT) => {
   token.isMember = Boolean(membership);
   token.membershipTier = membership?.tier ?? null;
   token.membershipCheckedAt = Date.now();
+};
+
+const applyAdminFlags = (token: JWT) => {
+  const normalizedEmail =
+    typeof token.email === "string" ? token.email.toLowerCase() : undefined;
+  const normalizedChannelId =
+    typeof token.youtubeChannelId === "string"
+      ? token.youtubeChannelId.toLowerCase()
+      : undefined;
+
+  const emailIsAdmin = normalizedEmail
+    ? adminEmails.includes(normalizedEmail)
+    : false;
+  const channelIsAdmin = normalizedChannelId
+    ? adminChannelIds.includes(normalizedChannelId)
+    : false;
+
+  const isChannelOwner = channelIsAdmin;
+  const isAdmin = emailIsAdmin || channelIsAdmin;
+
+  token.isAdmin = isAdmin;
+  token.isChannelOwner = isChannelOwner;
+  token.role = isChannelOwner ? "owner" : isAdmin ? "admin" : "user";
 };
 
 export const authOptions: NextAuthOptions = {
@@ -41,10 +69,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       if (user?.email) {
         const normalizedEmail = user.email.toLowerCase();
-        const isAdmin = adminEmails.includes(normalizedEmail);
         token.email = normalizedEmail;
-        token.role = isAdmin ? "admin" : "user";
-        token.isAdmin = isAdmin;
       }
 
       if (account?.access_token) {
@@ -56,6 +81,8 @@ export const authOptions: NextAuthOptions = {
           token.youtubeChannelId = null;
         }
       }
+
+      applyAdminFlags(token);
 
       const shouldRefreshMembership =
         token.youtubeChannelId &&
@@ -80,8 +107,9 @@ export const authOptions: NextAuthOptions = {
       session: Session;
       token: {
         email?: string | null;
-        role?: "admin" | "user";
+        role?: "owner" | "admin" | "user";
         isAdmin?: boolean;
+        isChannelOwner?: boolean;
         isMember?: boolean;
         membershipTier?: string | null;
         youtubeChannelId?: string | null;
@@ -95,6 +123,7 @@ export const authOptions: NextAuthOptions = {
         }
         session.user.role = token.role ?? "user";
         session.user.isAdmin = token.isAdmin ?? false;
+        session.user.isChannelOwner = token.isChannelOwner ?? false;
         session.user.isMember = token.isMember ?? false;
         session.user.membershipTier = token.membershipTier ?? null;
         session.user.youtubeChannelId = token.youtubeChannelId ?? null;
