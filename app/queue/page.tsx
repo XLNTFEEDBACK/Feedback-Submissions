@@ -59,7 +59,7 @@ const getTrackDisplay = (url: string) => {
 declare global {
   interface Window {
     SC?: {
-      Widget: (
+      Widget?: (
         iframe: HTMLIFrameElement
       ) => {
         bind: (event: string, listener: () => void) => void;
@@ -86,7 +86,7 @@ export default function QueuePage() {
     if (typeof window === "undefined") {
       return;
     }
-    if (window.SC && window.SC.Widget) {
+    if (window.SC?.Widget) {
       setWidgetReady(true);
       return;
     }
@@ -499,7 +499,7 @@ const QueueItem = ({
       return;
     }
     const iframe = iframeRef.current;
-    if (!iframe || !(window.SC && window.SC.Widget)) {
+    if (!iframe || !window.SC?.Widget) {
       return;
     }
     const widget = window.SC.Widget(iframe);
@@ -627,7 +627,7 @@ const QueueItem = ({
           )}
           {isExpanded && (
             <span className="text-xs uppercase text-gray-500">
-              Playing…
+              {isPlaying ? "Now Playing" : "Expanded"}
             </span>
           )}
         </div>
