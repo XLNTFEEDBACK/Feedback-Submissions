@@ -19,6 +19,43 @@ interface Submission {
   isSubscriber?: boolean | null;
 }
 
+const getTrackDisplay = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname
+      .split("/")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+    if (segments.length >= 2) {
+      const artist = decodeURIComponent(segments[segments.length - 2]);
+      const track = decodeURIComponent(segments[segments.length - 1]);
+      return {
+        artist,
+        track,
+        display: `${artist} – ${track}`,
+      };
+    }
+
+    if (segments.length === 1) {
+      const track = decodeURIComponent(segments[0]);
+      return {
+        artist: null,
+        track,
+        display: track,
+      };
+    }
+  } catch {
+    // noop
+  }
+
+  return {
+    artist: null,
+    track: null,
+    display: url,
+  };
+};
+
 export default function QueuePage() {
   const { data: session } = useSession();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -228,7 +265,7 @@ export default function QueuePage() {
         </div>
       ) : (
         <div className="text-gray-400 mb-4">
-          Sign in with an admin account to manage the queue.
+          you have no power here
         </div>
       )}
 
@@ -240,111 +277,193 @@ export default function QueuePage() {
         <p className="text-white">No submissions yet.</p>
       ) : (
         sortedSubmissions.map((sub, index) => (
-          <div key={sub.id} className="mb-4 w-full max-w-3xl">
-            {/* Submission number */}
-            <p className="text-white font-semibold mb-1">
-              #{index + 1}
-            </p>
-
-            <iframe
-              width="100%"
-              height="166"
-              scrolling="no"
-              frameBorder="no"
-              allow="autoplay"
-              src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
-                sub.soundcloudLink
-              )}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
-            ></iframe>
-
-            <div className="mt-2 flex flex-col gap-2 text-sm text-gray-300">
-              {sub.email && (
-                <span>
-                  Submitted by: <span className="text-white">{sub.email}</span>
-                </span>
-              )}
-              {sub.isChannelOwner && (
-                <span className="inline-flex w-fit rounded bg-blue-600 px-2 py-1 text-xs font-semibold uppercase text-white">
-                  Channel Owner
-                </span>
-              )}
-              {!sub.isChannelOwner &&
-                sub.submittedByRole === "admin" && (
-                  <span className="inline-flex w-fit rounded bg-green-700 px-2 py-1 text-xs font-semibold uppercase text-white">
-                    Admin
-                  </span>
-                )}
-              {sub.isMember === true && (
-                <span className="inline-flex w-fit items-center gap-1 rounded bg-purple-700 px-2 py-1 text-xs font-semibold uppercase text-white">
-                  Member
-                  {sub.membershipTier && (
-                    <span className="normal-case text-white/80">
-                      {sub.membershipTier}
-                    </span>
-                  )}
-                </span>
-              )}
-              {sub.isMember === false && (
-                <span className="inline-flex w-fit rounded bg-gray-700 px-2 py-1 text-xs font-semibold uppercase text-white">
-                  Not a Member
-                </span>
-              )}
-              {typeof sub.isSubscriber === "boolean" ? (
-                <span
-                  className={`inline-flex w-fit rounded px-2 py-1 text-xs font-semibold uppercase ${
-                    sub.isSubscriber
-                      ? "bg-orange-500 text-white"
-                      : "bg-gray-700 text-white"
-                  }`}
-                >
-                  {sub.isSubscriber ? "Subscriber" : "Not Subscribed"}
-                </span>
-              ) : (
-                <span className="inline-flex w-fit rounded bg-slate-700 px-2 py-1 text-xs font-semibold uppercase text-white">
-                  Subscription Unknown
-                </span>
-              )}
-              {sub.priority && (
-                <span className="inline-flex w-fit rounded bg-orange-600 px-2 py-1 text-xs font-semibold uppercase text-white">
-                  Priority
-                </span>
-              )}
-            </div>
-
-            {isAdmin && (
-              <div className="mt-3 flex flex-wrap gap-3">
-                <button
-                  onClick={() => handleMove(sub.id, "up")}
-                  disabled={
-                    pendingActionId !== null ||
-                    index === 0
-                  }
-                  className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Move Up
-                </button>
-                <button
-                  onClick={() => handleMove(sub.id, "down")}
-                  disabled={
-                    pendingActionId !== null ||
-                    index === sortedSubmissions.length - 1
-                  }
-                  className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Move Down
-                </button>
-                <button
-                  onClick={() => handleRemove(sub.id)}
-                  disabled={pendingActionId !== null}
-                  className="rounded border border-red-600 px-3 py-1 text-sm text-red-400 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Remove
-                </button>
-              </div>
-            )}
-          </div>
+          <QueueItem
+            key={sub.id}
+            submission={sub}
+            index={index}
+            isExpanded={index < 5}
+            onMove={handleMove}
+            onRemove={handleRemove}
+            pendingActionId={pendingActionId}
+            isAdmin={isAdmin}
+            total={sortedSubmissions.length}
+          />
         ))
       )}
     </div>
   );
 }
+
+const QueueItem = ({
+  submission,
+  index,
+  isExpanded,
+  onMove,
+  onRemove,
+  pendingActionId,
+  isAdmin,
+  total,
+}: {
+  submission: Submission;
+  index: number;
+  isExpanded: boolean;
+  onMove: (id: string, direction: "up" | "down") => void;
+  onRemove: (id: string) => void;
+  pendingActionId: string | null;
+  isAdmin: boolean;
+  total: number;
+}) => {
+  const position = index + 1;
+  const trackInfo = getTrackDisplay(submission.soundcloudLink);
+
+  const badges = [
+    submission.isChannelOwner && (
+      <span
+        key="owner"
+        className="inline-flex items-center rounded bg-blue-600 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+      >
+        Channel Owner
+      </span>
+    ),
+    !submission.isChannelOwner &&
+      submission.submittedByRole === "admin" && (
+        <span
+          key="admin"
+          className="inline-flex items-center rounded bg-green-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+        >
+          Admin
+        </span>
+      ),
+    submission.isMember === true && (
+      <span
+        key="member"
+        className="inline-flex items-center gap-1 rounded bg-purple-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+      >
+        Member
+        {submission.membershipTier && (
+          <span className="normal-case text-white/80">
+            {submission.membershipTier}
+          </span>
+        )}
+      </span>
+    ),
+    submission.isMember === false && (
+      <span
+        key="not-member"
+        className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+      >
+        Not a Member
+      </span>
+    ),
+    typeof submission.isSubscriber === "boolean" ? (
+      <span
+        key="subscriber"
+        className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold uppercase ${
+          submission.isSubscriber
+            ? "bg-orange-500 text-white"
+            : "bg-gray-700 text-white"
+        }`}
+      >
+        {submission.isSubscriber ? "Subscriber" : "Not Subscribed"}
+      </span>
+    ) : (
+      <span
+        key="subscriber-unknown"
+        className="inline-flex items-center rounded bg-slate-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+      >
+        Subscription Unknown
+      </span>
+    ),
+    submission.priority && (
+      <span
+        key="priority"
+        className="inline-flex items-center rounded bg-orange-600 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+      >
+        Priority
+      </span>
+    ),
+  ].filter(Boolean);
+
+  return (
+    <div className="mb-4 w-full max-w-3xl rounded-lg border border-gray-800 bg-gray-900/60 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-white text-lg font-semibold">
+            #{position}
+          </span>
+          {badges}
+        </div>
+        {submission.email && (
+          <span className="text-sm text-gray-300">
+            Submitted by:{" "}
+            <span className="text-white font-medium">
+              {submission.email}
+            </span>
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2 text-sm text-gray-300">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <a
+            href={submission.soundcloudLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white text-base font-semibold hover:underline"
+          >
+            {trackInfo.display}
+          </a>
+          {!isExpanded && (
+            <span className="text-xs uppercase text-gray-500">
+              Collapsed preview
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-3 overflow-hidden rounded-lg">
+          <iframe
+            title={`SoundCloud player ${submission.id}`}
+            width="100%"
+            height="160"
+            scrolling="no"
+            frameBorder="no"
+            allow="autoplay"
+            src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
+              submission.soundcloudLink
+            )}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+          ></iframe>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="mt-3 flex flex-wrap gap-3">
+          <button
+            onClick={() => onMove(submission.id, "up")}
+            disabled={pendingActionId !== null || index === 0}
+            className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Move Up
+          </button>
+          <button
+            onClick={() => onMove(submission.id, "down")}
+            disabled={
+              pendingActionId !== null || index === total - 1
+            }
+            className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Move Down
+          </button>
+          <button
+            onClick={() => onRemove(submission.id)}
+            disabled={pendingActionId !== null}
+            className="rounded border border-red-600 px-3 py-1 text-sm text-red-400 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};

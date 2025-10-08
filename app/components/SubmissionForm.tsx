@@ -10,7 +10,6 @@ export default function SubmissionForm() {
   const isMember = session?.user?.isMember ?? false;
   const subscriberStatus = session?.user?.isSubscriber;
   const membershipTier = session?.user?.membershipTier ?? null;
-  const email = session?.user?.email ?? "";
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [priority, setPriority] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -63,7 +62,6 @@ export default function SubmissionForm() {
   };
 
   const showModal = status === "unauthenticated";
-  const showContent = status === "authenticated";
 
   return (
     <div className="relative bg-black min-h-screen w-full flex flex-col items-center py-10">
