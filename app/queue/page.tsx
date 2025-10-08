@@ -37,7 +37,7 @@ export default function QueuePage() {
   }, []);
 
   return (
-    <div className="max-w-3xl mx-auto mt-10 p-4">
+    <div className="max-w-3xl mx-auto mt-10 p-4 bg-black min-h-screen text-white">
       <h1 className="text-2xl font-bold mb-4">Submission Queue</h1>
 
       {isAdmin && (
@@ -71,5 +71,6 @@ export default function QueuePage() {
     </div>
   );
 }
+
 
 
