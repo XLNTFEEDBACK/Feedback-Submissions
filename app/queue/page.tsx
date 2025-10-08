@@ -28,18 +28,61 @@ export default function QueuePage() {
   const isAdmin = session?.user?.isAdmin ?? false;
 
   const sortedSubmissions = useMemo(() => {
+    const membershipTierRank = (submission: Submission) => {
+      if (!submission.isMember) {
+        return Number.MAX_SAFE_INTEGER;
+      }
+
+      const tierId = submission.membershipTier ?? "";
+      const numericMatch = tierId.match(/\d+/);
+      if (numericMatch) {
+        const numericValue = parseInt(numericMatch[0], 10);
+        if (!Number.isNaN(numericValue)) {
+          return -numericValue;
+        }
+      }
+
+      if (tierId) {
+        return -1;
+      }
+
+      return Number.MAX_SAFE_INTEGER - 1;
+    };
+
+    const subscriptionRank = (submission: Submission) => {
+      if (submission.isSubscriber === true) return 0;
+      if (submission.isSubscriber === false) return 1;
+      return 2;
+    };
+
+    const priorityRank = (submission: Submission) =>
+      submission.priority ? 0 : 1;
+
+    const orderRank = (submission: Submission) =>
+      typeof submission.order === "number"
+        ? submission.order
+        : submission.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+
     return submissions
       .slice()
       .sort((a, b) => {
-        const orderA =
-          typeof a.order === "number"
-            ? a.order
-            : a.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
-        const orderB =
-          typeof b.order === "number"
-            ? b.order
-            : b.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
-        return orderA - orderB;
+        const comparisons = [
+          (a.isChannelOwner ? 0 : 1) - (b.isChannelOwner ? 0 : 1),
+          membershipTierRank(a) - membershipTierRank(b),
+          subscriptionRank(a) - subscriptionRank(b),
+          priorityRank(a) - priorityRank(b),
+          orderRank(a) - orderRank(b),
+        ];
+
+        for (const diff of comparisons) {
+          if (diff !== 0) {
+            return diff;
+          }
+        }
+
+        const timeA = a.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+        const timeB = b.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+        return timeA - timeB;
       });
   }, [submissions]);
 
