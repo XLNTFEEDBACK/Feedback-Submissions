@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { signIn, useSession } from "next-auth/react";
 
 export default function SubmissionForm() {
+  const { data: session, status } = useSession();
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [email, setEmail] = useState("");
   const [priority, setPriority] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (session?.user?.email) {
+      setEmail(session.user.email);
+    }
+  }, [session?.user?.email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +51,30 @@ export default function SubmissionForm() {
     }
   };
 
+  if (status === "loading") {
+    return (
+      <div className="bg-black min-h-screen w-full flex items-center justify-center text-white">
+        Loading...
+      </div>
+    );
+  }
+
+  if (status === "unauthenticated") {
+    return (
+      <div className="bg-black min-h-screen w-full flex flex-col items-center justify-center gap-6 text-white">
+        <h2 className="text-3xl font-bold text-center">
+          Sign in to submit your track
+        </h2>
+        <button
+          onClick={() => signIn("google")}
+          className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded text-white font-semibold"
+        >
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-black min-h-screen w-full flex flex-col items-center py-10">
       {/* Header */}
@@ -67,13 +99,14 @@ export default function SubmissionForm() {
         </label>
 
         <label className="flex flex-col gap-1 text-white">
-          Your Email (optional):
+          Your Email:
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
             placeholder="example@example.com"
+            required
           />
         </label>
 
@@ -102,5 +135,4 @@ export default function SubmissionForm() {
     </div>
   );
 }
-
 

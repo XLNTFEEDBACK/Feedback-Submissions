@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "../../firebase/firebaseAdmin"; // Admin SDK import
 
 export async function POST(req: NextRequest) {
   try {
-    const { soundcloudLink, email, priority } = await req.json();
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { soundcloudLink, priority } = await req.json();
 
     if (!soundcloudLink) {
       return NextResponse.json({ success: false, error: "Missing SoundCloud link." });
@@ -11,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const submission = {
       soundcloudLink,
-      email: email || "",
+      email: session.user?.email || "",
       priority: !!priority,  // ensures boolean
       timestamp: new Date(),
     };
@@ -25,5 +36,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Failed to submit track." });
   }
 }
-
-
