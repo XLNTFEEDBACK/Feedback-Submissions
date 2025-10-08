@@ -62,40 +62,46 @@ export default function SubmissionForm() {
     }
   };
 
-  if (status === "loading") {
-    return (
-      <div className="bg-black min-h-screen w-full flex items-center justify-center text-white">
-        Loading...
-      </div>
-    );
-  }
-
-  if (status === "unauthenticated") {
-    return (
-      <div className="bg-black min-h-screen w-full flex flex-col items-center justify-center gap-6 text-white">
-        <h2 className="text-3xl font-bold text-center">
-          Sign in to submit your track
-        </h2>
-        <button
-          onClick={() => signIn("google")}
-          className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded text-white font-semibold"
-        >
-          Sign in with Google
-        </button>
-      </div>
-    );
-  }
+  const showModal = status === "unauthenticated";
+  const showContent = status === "authenticated";
 
   return (
-    <div className="bg-black min-h-screen w-full flex flex-col items-center py-10">
+    <div className="relative bg-black min-h-screen w-full flex flex-col items-center py-10">
+      {status === "loading" && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 text-white">
+          Loading...
+        </div>
+      )}
+
+      {showModal && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 px-4">
+          <div className="w-full max-w-md rounded-lg bg-gray-900 p-8 text-center shadow-xl border border-gray-700">
+            <h2 className="text-2xl font-bold text-white mb-4">
+              Sign in to submit your track
+            </h2>
+            <p className="text-gray-300 mb-6">
+              Connect with your Google account to access the submission form.
+            </p>
+            <button
+              onClick={() => signIn("google")}
+              className="w-full bg-red-600 hover:bg-red-700 px-6 py-3 rounded text-white font-semibold transition"
+            >
+              Sign in with Google
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <header className="w-full bg-black py-6 mb-6">
+      <header className="w-full bg-black py-6 mb-6 opacity-100">
         <h1 className="text-3xl font-bold text-white text-center">Submit Your Track</h1>
       </header>
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 w-full max-w-xl p-6 bg-gray-900 rounded-md"
+        className={`flex flex-col gap-4 w-full max-w-xl p-6 bg-gray-900 rounded-md transition ${
+          showModal ? "opacity-30 pointer-events-none" : "opacity-100"
+        }`}
       >
         <div className="text-white">
           Signed in as{" "}
@@ -158,17 +164,6 @@ export default function SubmissionForm() {
             required
             className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
             placeholder="https://soundcloud.com/your-track"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-white">
-          Your Email:
-          <input
-            type="email"
-            value={email}
-            readOnly
-            className="border border-gray-700 rounded px-2 py-1 bg-gray-800 text-white opacity-80"
-            placeholder="example@example.com"
           />
         </label>
 
