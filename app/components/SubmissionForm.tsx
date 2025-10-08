@@ -133,10 +133,9 @@ export default function SubmissionForm() {
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
+            readOnly
+            className="border border-gray-700 rounded px-2 py-1 bg-gray-800 text-white opacity-80"
             placeholder="example@example.com"
-            required
           />
         </label>
 
