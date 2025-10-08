@@ -37,37 +37,38 @@ export default function QueuePage() {
   }, []);
 
   return (
-    <div className="max-w-3xl mx-auto mt-10 p-4 bg-black min-h-screen text-white">
-      <h1 className="text-2xl font-bold mb-4">Submission Queue</h1>
+    <div className="bg-black min-h-screen w-full">
+      <div className="max-w-3xl mx-auto mt-10 p-4 text-white">
+        <h1 className="text-2xl font-bold mb-4">Submission Queue</h1>
 
-      {isAdmin && (
-        <div className="bg-yellow-300 text-black p-2 rounded mb-4 font-semibold">
-          You are viewing as ADMIN
-        </div>
-      )}
-
-      {submissions.length === 0 ? (
-        <p>No submissions yet.</p>
-      ) : (
-        submissions.map((sub, index) => (
-          <div key={sub.id} className="mb-6 flex items-center gap-3">
-            {/* Queue number */}
-            <span className="font-bold text-lg">{index + 1}.</span>
-
-            {/* SoundCloud player */}
-            <iframe
-              width="100%"
-              height="166"
-              scrolling="no"
-              frameBorder="no"
-              allow="autoplay"
-              src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
-                sub.soundcloudLink
-              )}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
-            ></iframe>
+        {isAdmin && (
+          <div className="bg-yellow-300 text-black p-2 rounded mb-4 font-semibold">
+            You are viewing as ADMIN
           </div>
-        ))
-      )}
+        )}
+
+        {submissions.length === 0 ? (
+          <p>No submissions yet.</p>
+        ) : (
+          submissions.map((sub, index) => (
+            <div key={sub.id} className="mb-6">
+              <p className="mb-2 font-bold">#{index + 1}</p>
+              <div className="bg-black p-1 rounded">
+                <iframe
+                  width="100%"
+                  height="166"
+                  scrolling="no"
+                  frameBorder="no"
+                  allow="autoplay"
+                  src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
+                    sub.soundcloudLink
+                  )}&color=%23000000&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+                ></iframe>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
