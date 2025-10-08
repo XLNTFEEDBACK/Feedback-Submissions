@@ -7,6 +7,7 @@ declare module "next-auth" {
       isAdmin?: boolean;
       isChannelOwner?: boolean;
       isMember?: boolean;
+      isSubscriber?: boolean | null;
       membershipTier?: string | null;
       youtubeChannelId?: string | null;
     };
@@ -19,9 +20,11 @@ declare module "next-auth/jwt" {
     isAdmin?: boolean;
     isChannelOwner?: boolean;
     isMember?: boolean;
+    isSubscriber?: boolean | null;
     membershipTier?: string | null;
     youtubeChannelId?: string | null;
     membershipCheckedAt?: number;
+    subscriptionCheckedAt?: number;
   }
 }
 

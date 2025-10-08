@@ -16,6 +16,7 @@ interface Submission {
   youtubeChannelId?: string | null;
   submittedByRole?: string;
   isChannelOwner?: boolean;
+  isSubscriber?: boolean | null;
 }
 
 export default function QueuePage() {
@@ -58,6 +59,7 @@ export default function QueuePage() {
         youtubeChannelId: doc.data().youtubeChannelId ?? null,
         submittedByRole: doc.data().submittedByRole,
         isChannelOwner: doc.data().isChannelOwner,
+        isSubscriber: doc.data().isSubscriber,
       })) as Submission[];
       setSubmissions(subs);
     });
@@ -229,7 +231,7 @@ export default function QueuePage() {
                     Admin
                   </span>
                 )}
-              {sub.isMember && (
+              {sub.isMember === true && (
                 <span className="inline-flex w-fit items-center gap-1 rounded bg-purple-700 px-2 py-1 text-xs font-semibold uppercase text-white">
                   Member
                   {sub.membershipTier && (
@@ -237,6 +239,26 @@ export default function QueuePage() {
                       {sub.membershipTier}
                     </span>
                   )}
+                </span>
+              )}
+              {sub.isMember === false && (
+                <span className="inline-flex w-fit rounded bg-gray-700 px-2 py-1 text-xs font-semibold uppercase text-white">
+                  Not a Member
+                </span>
+              )}
+              {typeof sub.isSubscriber === "boolean" ? (
+                <span
+                  className={`inline-flex w-fit rounded px-2 py-1 text-xs font-semibold uppercase ${
+                    sub.isSubscriber
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-700 text-white"
+                  }`}
+                >
+                  {sub.isSubscriber ? "Subscriber" : "Not Subscribed"}
+                </span>
+              ) : (
+                <span className="inline-flex w-fit rounded bg-slate-700 px-2 py-1 text-xs font-semibold uppercase text-white">
+                  Subscription Unknown
                 </span>
               )}
               {sub.priority && (

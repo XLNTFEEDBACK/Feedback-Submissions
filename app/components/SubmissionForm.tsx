@@ -8,6 +8,7 @@ export default function SubmissionForm() {
   const isAdmin = session?.user?.isAdmin ?? false;
   const isChannelOwner = session?.user?.isChannelOwner ?? false;
   const isMember = session?.user?.isMember ?? false;
+  const subscriberStatus = session?.user?.isSubscriber;
   const membershipTier = session?.user?.membershipTier ?? null;
   const email = session?.user?.email ?? "";
   const [soundcloudLink, setSoundcloudLink] = useState("");
@@ -117,6 +118,26 @@ export default function SubmissionForm() {
           {isMember && (
             <span className="ml-2 inline-flex items-center rounded bg-purple-700 px-2 py-0.5 text-xs font-semibold uppercase">
               Member{membershipTier ? ` – ${membershipTier}` : ""}
+            </span>
+          )}
+          {!isMember && (
+            <span className="ml-2 inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold uppercase">
+              Not a Member
+            </span>
+          )}
+          {subscriberStatus === true && (
+            <span className="ml-2 inline-flex items-center rounded bg-orange-500 px-2 py-0.5 text-xs font-semibold uppercase">
+              Subscriber
+            </span>
+          )}
+          {subscriberStatus === false && (
+            <span className="ml-2 inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold uppercase">
+              Not Subscribed
+            </span>
+          )}
+          {subscriberStatus == null && (
+            <span className="ml-2 inline-flex items-center rounded bg-slate-700 px-2 py-0.5 text-xs font-semibold uppercase">
+              Subscription Unknown
             </span>
           )}
           <button

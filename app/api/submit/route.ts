@@ -23,10 +23,12 @@ export async function POST(req: NextRequest) {
     const isAdmin = session.user?.isAdmin ?? false;
     const isChannelOwner = session.user?.isChannelOwner ?? false;
     const isMember = session.user?.isMember ?? false;
+    const isSubscriber = session.user?.isSubscriber ?? null;
     const membershipTier = session.user?.membershipTier ?? null;
 
     const requestedPriority = Boolean(priority);
-    const derivedPriority = isMember || (isAdmin && requestedPriority);
+    const derivedPriority =
+      isMember || isChannelOwner || (isAdmin && requestedPriority);
 
     const now = Date.now();
     const orderBaseline = derivedPriority ? now - 1_000_000_000 : now;
@@ -39,6 +41,7 @@ export async function POST(req: NextRequest) {
       order: orderBaseline,
       isMember,
       membershipTier,
+      isSubscriber,
       isChannelOwner,
       youtubeChannelId: session.user?.youtubeChannelId ?? null,
       submittedByRole: isChannelOwner

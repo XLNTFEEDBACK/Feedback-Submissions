@@ -240,3 +240,43 @@ export const getUserChannelId = async (
     return null;
   }
 };
+
+export const isUserSubscribedToChannel = async (
+  userAccessToken: string,
+  targetChannelId: string
+): Promise<boolean | null> => {
+  try {
+    const url = new URL(
+      "https://youtube.googleapis.com/youtube/v3/subscriptions"
+    );
+    url.searchParams.set("part", "id");
+    url.searchParams.set("forChannelId", targetChannelId);
+    url.searchParams.set("mine", "true");
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${userAccessToken}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error(
+        "[youtube] Failed to fetch subscription status",
+        response.status,
+        body
+      );
+      return null;
+    }
+
+    const data: {
+      pageInfo?: { totalResults?: number };
+    } = await response.json();
+
+    return (data.pageInfo?.totalResults ?? 0) > 0;
+  } catch (error) {
+    console.error("[youtube] Error retrieving subscription status", error);
+    return null;
+  }
+};

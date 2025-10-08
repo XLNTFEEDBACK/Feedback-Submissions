@@ -1,7 +1,11 @@
 import { NextAuthOptions, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
-import { getMembershipForChannel, getUserChannelId } from "@/lib/youtube";
+import {
+  getMembershipForChannel,
+  getUserChannelId,
+  isUserSubscribedToChannel,
+} from "@/lib/youtube";
 
 const adminEmails =
   process.env.ADMIN_EMAILS?.split(",")
@@ -14,6 +18,9 @@ const adminChannelIds =
     .filter(Boolean) ?? [];
 
 const MEMBERSHIP_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+const SUBSCRIPTION_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+const targetChannelId =
+  process.env.YOUTUBE_TARGET_CHANNEL_ID?.trim().toLowerCase() ?? null;
 
 const assignMembershipFlags = async (token: JWT) => {
   const channelId = token.youtubeChannelId as string | null | undefined;
@@ -80,6 +87,23 @@ export const authOptions: NextAuthOptions = {
           console.error("[auth] Failed to get user channel ID", error);
           token.youtubeChannelId = null;
         }
+        if (targetChannelId) {
+          try {
+            const subscriptionStatus = await isUserSubscribedToChannel(
+              account.access_token,
+              targetChannelId
+            );
+            if (subscriptionStatus !== null) {
+              token.isSubscriber = subscriptionStatus;
+              token.subscriptionCheckedAt = Date.now();
+            }
+          } catch (error) {
+            console.error(
+              "[auth] Failed to resolve subscription status",
+              error
+            );
+          }
+        }
       }
 
       applyAdminFlags(token);
@@ -90,12 +114,25 @@ export const authOptions: NextAuthOptions = {
           Date.now() - (token.membershipCheckedAt as number) >
             MEMBERSHIP_REFRESH_INTERVAL_MS);
 
+      const shouldRefreshSubscription =
+        targetChannelId &&
+        (!token.subscriptionCheckedAt ||
+          Date.now() - (token.subscriptionCheckedAt as number) >
+            SUBSCRIPTION_REFRESH_INTERVAL_MS);
+
       if (account?.access_token || shouldRefreshMembership) {
         try {
           await assignMembershipFlags(token);
         } catch (error) {
           console.error("[auth] Failed to resolve membership status", error);
         }
+      }
+
+      if (
+        shouldRefreshSubscription &&
+        typeof token.isSubscriber !== "boolean"
+      ) {
+        token.isSubscriber = null;
       }
 
       return token;
@@ -111,6 +148,7 @@ export const authOptions: NextAuthOptions = {
         isAdmin?: boolean;
         isChannelOwner?: boolean;
         isMember?: boolean;
+        isSubscriber?: boolean | null;
         membershipTier?: string | null;
         youtubeChannelId?: string | null;
       };
@@ -125,6 +163,8 @@ export const authOptions: NextAuthOptions = {
         session.user.isAdmin = token.isAdmin ?? false;
         session.user.isChannelOwner = token.isChannelOwner ?? false;
         session.user.isMember = token.isMember ?? false;
+        session.user.isSubscriber =
+          token.isSubscriber ?? null;
         session.user.membershipTier = token.membershipTier ?? null;
         session.user.youtubeChannelId = token.youtubeChannelId ?? null;
       }
