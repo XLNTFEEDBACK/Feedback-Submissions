@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 
 export default function SubmissionForm() {
   const { data: session, status } = useSession();
@@ -107,6 +107,13 @@ export default function SubmissionForm() {
               (standard access)
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="ml-4 rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white"
+          >
+            Sign out
+          </button>
         </div>
 
         <label className="flex flex-col gap-1 text-white">
