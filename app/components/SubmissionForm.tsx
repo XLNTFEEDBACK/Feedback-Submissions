@@ -5,6 +5,7 @@ import { signIn, useSession } from "next-auth/react";
 
 export default function SubmissionForm() {
   const { data: session, status } = useSession();
+  const isAdmin = session?.user?.isAdmin ?? false;
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [email, setEmail] = useState("");
   const [priority, setPriority] = useState(false);
@@ -17,6 +18,12 @@ export default function SubmissionForm() {
       setEmail(session.user.email);
     }
   }, [session?.user?.email]);
+
+  useEffect(() => {
+    if (!isAdmin && priority) {
+      setPriority(false);
+    }
+  }, [isAdmin, priority]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +93,22 @@ export default function SubmissionForm() {
         onSubmit={handleSubmit}
         className="flex flex-col gap-4 w-full max-w-xl p-6 bg-gray-900 rounded-md"
       >
+        <div className="text-white">
+          Signed in as{" "}
+          <span className="font-semibold">
+            {session?.user?.email ?? "unknown user"}
+          </span>
+          {isAdmin ? (
+            <span className="ml-2 inline-flex items-center rounded bg-green-700 px-2 py-0.5 text-xs font-semibold uppercase">
+              Admin
+            </span>
+          ) : (
+            <span className="ml-2 text-sm text-gray-400">
+              (standard access)
+            </span>
+          )}
+        </div>
+
         <label className="flex flex-col gap-1 text-white">
           SoundCloud Link:
           <input
@@ -110,14 +133,20 @@ export default function SubmissionForm() {
           />
         </label>
 
-        <label className="flex items-center gap-2 text-white">
-          Priority (for members/donors):
-          <input
-            type="checkbox"
-            checked={priority}
-            onChange={(e) => setPriority(e.target.checked)}
-          />
-        </label>
+        {isAdmin ? (
+          <label className="flex items-center gap-2 text-white">
+            Priority (admins only):
+            <input
+              type="checkbox"
+              checked={priority}
+              onChange={(e) => setPriority(e.target.checked)}
+            />
+          </label>
+        ) : (
+          <p className="text-sm text-gray-400">
+            Priority queue access is available to admins only.
+          </p>
+        )}
 
         <button
           type="submit"
@@ -135,4 +164,3 @@ export default function SubmissionForm() {
     </div>
   );
 }
-
