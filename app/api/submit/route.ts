@@ -20,11 +20,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing SoundCloud link." });
     }
 
+    const now = Date.now();
+    const orderBaseline = priority ? now - 1_000_000_000 : now;
+
     const submission = {
       soundcloudLink,
       email: session.user?.email || "",
       priority: !!priority,  // ensures boolean
       timestamp: new Date(),
+      order: orderBaseline,
     };
 
     // Add to Firestore using Admin SDK
