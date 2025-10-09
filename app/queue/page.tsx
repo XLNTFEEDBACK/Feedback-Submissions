@@ -825,20 +825,17 @@ const QueueItem = ({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-col gap-2 text-sm text-gray-300">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          {!isExpanded && (
-            <a
-              href={submission.soundcloudLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white text-base font-semibold hover:underline"
-            >
-              {trackInfo.display}
-            </a>
-          )}
-          {isExpanded && <span className="text-xs uppercase text-gray-500">&nbsp;</span>}
-        </div>
+      <div className="mt-2 flex flex-col gap-1 text-sm text-gray-300">
+        {!isExpanded && (
+          <a
+            href={submission.soundcloudLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white text-base font-semibold hover:underline"
+          >
+            {trackInfo.display}
+          </a>
+        )}
         {socialLinks.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {socialLinks.map((link) => (
