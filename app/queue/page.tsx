@@ -90,6 +90,20 @@ const buildSocialLink = (
   };
 };
 
+const INSTAGRAM_ICON = (
+  <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+    <path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 7.4a2.9 2.9 0 1 1 0-5.8 2.9 2.9 0 0 1 0 5.8z" />
+    <path d="M12.5 1h-9A2.5 2.5 0 0 0 1 3.5v9A2.5 2.5 0 0 0 3.5 15h9a2.5 2.5 0 0 0 2.5-2.5v-9A2.5 2.5 0 0 0 12.5 1zm1 11.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v9z" />
+    <circle cx="12.1" cy="3.9" r=".9" />
+  </svg>
+);
+
+const TIKTOK_ICON = (
+  <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+    <path d="M15 5c-1.2 0-2.3-.4-3.2-1.1v6.3c0 3-2.4 5.3-5.4 5.3A5.3 5.3 0 0 1 1 10.2c0-2.9 2.3-5.2 5.2-5.3v2.7c-1 .1-1.8.9-1.8 1.9 0 1.1.9 2 2 2 1.1 0 2-.9 2-2V0h2.2c.2 1.7 1.6 3 3.4 3V5z" />
+  </svg>
+);
+
 declare global {
   interface Window {
     SC?: {
@@ -657,17 +671,23 @@ const QueueItem = ({
     submission.isChannelOwner && (
       <span
         key="owner"
-        className="inline-flex items-center rounded bg-blue-600 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+        className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-0.5 text-xs font-semibold uppercase text-white"
       >
-        Channel Owner
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+          <path d="M8 0l2.469 4.995 5.531.805-4 3.894.944 5.506-4.944-2.598-4.944 2.598.944-5.506-4-3.894 5.531-.805z" />
+        </svg>
+        Owner
       </span>
     ),
     !submission.isChannelOwner &&
       submission.submittedByRole === "admin" && (
         <span
           key="admin"
-          className="inline-flex items-center rounded bg-green-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+          className="inline-flex items-center gap-1 rounded bg-green-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
         >
+          <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+            <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+          </svg>
           Admin
         </span>
       ),
@@ -676,6 +696,9 @@ const QueueItem = ({
         key="member"
         className="inline-flex items-center gap-1 rounded bg-purple-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
       >
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+          <path d="M8 12l-3.5 2.1 1-4-3-2.6 4-.3L8 3l1.5 4.2 4 .3-3 2.6 1 4z" />
+        </svg>
         Member
         {submission.membershipTier && (
           <span className="normal-case text-white/80">
@@ -687,35 +710,47 @@ const QueueItem = ({
     submission.isMember === false && (
       <span
         key="not-member"
-        className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+        className="inline-flex items-center gap-1 rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
       >
-        Not a Member
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+          <path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+        Not Member
       </span>
     ),
     typeof submission.isSubscriber === "boolean" ? (
       <span
         key="subscriber"
-        className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold uppercase ${
+        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold uppercase ${
           submission.isSubscriber
             ? "bg-orange-500 text-white"
             : "bg-gray-700 text-white"
         }`}
       >
-        {submission.isSubscriber ? "Subscriber" : "Not Subscribed"}
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+          <path d="M15 8L1 15V1l14 7z" />
+        </svg>
+        {submission.isSubscriber ? "Subscriber" : "Not Subbed"}
       </span>
     ) : (
       <span
         key="subscriber-unknown"
-        className="inline-flex items-center rounded bg-slate-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+        className="inline-flex items-center gap-1 rounded bg-slate-700 px-2 py-0.5 text-xs font-semibold uppercase text-white"
       >
-        Subscription Unknown
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+          <path d="M7.938 2.016a1 1 0 0 1 1.124.992l-.09 1.518a1 1 0 0 0 .288.751l1.06 1.058a1 1 0 0 1 0 1.414l-1.06 1.058a1 1 0 0 0-.288.751l.09 1.518a1 1 0 0 1-1.124.992l-1.518-.09a1 1 0 0 0-.751.288l-1.058 1.06a1 1 0 0 1-1.414 0l-1.058-1.06a1 1 0 0 0-.751-.288l-1.518.09a1 1 0 0 1-.992-1.124l.09-1.518a1 1 0 0 0-.288-.751L.439 7.94a1 1 0 0 1 0-1.414l1.06-1.058a1 1 0 0 0 .288-.751l-.09-1.518A1 1 0 0 1 2.689 2l1.518.09a1 1 0 0 0 .751-.288l1.058-1.06a1 1 0 0 1 1.414 0l1.058 1.06a1 1 0 0 0 .751.288l1.518-.09z" />
+        </svg>
+        Unknown
       </span>
     ),
     submission.priority && (
       <span
         key="priority"
-        className="inline-flex items-center rounded bg-orange-600 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+        className="inline-flex items-center gap-1 rounded bg-orange-600 px-2 py-0.5 text-xs font-semibold uppercase text-white"
       >
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+          <path d="M2 2h12l-2 6 2 6H2l2-6-2-6z" />
+        </svg>
         Priority
       </span>
     ),
@@ -724,11 +759,16 @@ const QueueItem = ({
   const instagramLink = buildSocialLink(submission.instagramHandle, "instagram");
   const tiktokLink = buildSocialLink(submission.tiktokHandle, "tiktok");
   const socialLinks = [
-    instagramLink && { label: "Instagram", ...instagramLink },
-    tiktokLink && { label: "TikTok", ...tiktokLink },
-  ].filter(Boolean) as Array<{ label: string; url: string; display: string }>;
+    instagramLink && { label: "Instagram", icon: INSTAGRAM_ICON, ...instagramLink },
+    tiktokLink && { label: "TikTok", icon: TIKTOK_ICON, ...tiktokLink },
+  ].filter(Boolean) as Array<{
+    label: string;
+    icon: JSX.Element;
+    url: string;
+    display: string;
+  }>;
 
-  const cardClasses = `mb-4 w-full max-w-3xl rounded-lg border p-4 transition ${
+  const cardClasses = `mb-2 w-full max-w-3xl rounded-lg border p-3 transition ${
     isPlaying
       ? "border-green-400 bg-green-900/60 ring-2 ring-green-400"
       : hasPlayed
@@ -738,7 +778,7 @@ const QueueItem = ({
 
   return (
     <div className={cardClasses}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-white text-lg font-semibold">
             #{position}
@@ -792,17 +832,17 @@ const QueueItem = ({
           {isExpanded && <span className="text-xs uppercase text-gray-500">&nbsp;</span>}
         </div>
         {socialLinks.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1">
             {socialLinks.map((link) => (
               <a
                 key={link.label}
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-full border border-gray-600 px-3 py-1 text-xs font-semibold text-gray-200 transition hover:bg-gray-800 hover:text-white"
+                className="inline-flex items-center gap-1 rounded-full border border-gray-700 bg-gray-800/60 px-2 py-0.5 text-[11px] font-medium text-gray-200 transition hover:bg-gray-700"
               >
-                <span>{link.label}</span>
-                <span className="text-gray-400">{link.display}</span>
+                {link.icon}
+                <span className="text-gray-300">{link.display}</span>
               </a>
             ))}
           </div>
@@ -810,11 +850,11 @@ const QueueItem = ({
       </div>
 
       {isExpanded && (
-        <div className="mt-3 overflow-hidden rounded-lg">
+        <div className="mt-2 overflow-hidden rounded-lg">
           <iframe
             title={`SoundCloud player ${submission.id}`}
             width="100%"
-            height="160"
+            height="140"
             scrolling="no"
             frameBorder="no"
             allow="autoplay"
