@@ -111,53 +111,59 @@ export default function SubmissionForm() {
           showModal ? "opacity-30 pointer-events-none" : "opacity-100"
         }`}
       >
-        <div className="text-white">
-          Signed in as{" "}
-          <span className="font-semibold">
-            {session?.user?.email ?? "unknown user"}
-          </span>
-          {isChannelOwner && (
-            <span className="ml-2 inline-flex items-center rounded bg-blue-600 px-2 py-0.5 text-xs font-semibold uppercase">
-              Channel Owner
+        <div className="text-white flex flex-col gap-2">
+          <div>
+            Signed in as{" "}
+            <span className="font-semibold">
+              {session?.user?.email ?? "unknown user"}
             </span>
-          )}
-          {isAdmin && (
-            <span className="ml-2 inline-flex items-center rounded bg-green-700 px-2 py-0.5 text-xs font-semibold uppercase">
-              Admin
-            </span>
-          )}
-          {!isAdmin && !isChannelOwner && (
-            <span className="ml-2 text-sm text-gray-400">(standard access)</span>
-          )}
-          {isMember && (
-            <span className="ml-2 inline-flex items-center rounded bg-purple-700 px-2 py-0.5 text-xs font-semibold uppercase">
-              Member{membershipTier ? ` – ${membershipTier}` : ""}
-            </span>
-          )}
-          {!isMember && (
-            <span className="ml-2 inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold uppercase">
-              Not a Member
-            </span>
-          )}
-          {subscriberStatus === true && (
-            <span className="ml-2 inline-flex items-center rounded bg-orange-500 px-2 py-0.5 text-xs font-semibold uppercase">
-              Subscriber
-            </span>
-          )}
-          {subscriberStatus === false && (
-            <span className="ml-2 inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold uppercase">
-              Not Subscribed
-            </span>
-          )}
-          {subscriberStatus == null && (
-            <span className="ml-2 inline-flex items-center rounded bg-slate-700 px-2 py-0.5 text-xs font-semibold uppercase">
-              Subscription Unknown
-            </span>
-          )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs uppercase">
+            {isChannelOwner && (
+              <span className="inline-flex items-center rounded bg-blue-600 px-2 py-0.5 font-semibold">
+                Channel Owner
+              </span>
+            )}
+            {isAdmin && (
+              <span className="inline-flex items-center rounded bg-green-700 px-2 py-0.5 font-semibold">
+                Admin
+              </span>
+            )}
+            {!isAdmin && !isChannelOwner && (
+              <span className="text-sm text-gray-400 normal-case">
+                (standard access)
+              </span>
+            )}
+            {isMember && (
+              <span className="inline-flex items-center rounded bg-purple-700 px-2 py-0.5 font-semibold">
+                Member{membershipTier ? ` – ${membershipTier}` : ""}
+              </span>
+            )}
+            {!isMember && (
+              <span className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 font-semibold">
+                Not a Member
+              </span>
+            )}
+            {subscriberStatus === true && (
+              <span className="inline-flex items-center rounded bg-orange-500 px-2 py-0.5 font-semibold">
+                Subscriber
+              </span>
+            )}
+            {subscriberStatus === false && (
+              <span className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 font-semibold">
+                Not Subscribed
+              </span>
+            )}
+            {subscriberStatus == null && (
+              <span className="inline-flex items-center rounded bg-slate-700 px-2 py-0.5 font-semibold">
+                Subscription Unknown
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="ml-4 rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white"
+            className="w-fit rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white"
           >
             Sign out
           </button>
