@@ -226,7 +226,7 @@ export const getUserChannelProfile = async (
         response.status,
         body
       );
-      return null;
+      return { channelId: null, title: null, avatarUrl: null };
     }
 
     const data: {
