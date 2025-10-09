@@ -112,7 +112,7 @@ const fetchMembershipPage = async (
   url.searchParams.set("part", "snippet");
   url.searchParams.set(
     "fields",
-    "items/snippet(memberDetails/channelId,memberDetails/displayName,membershipsDetails/membershipsLevelId),nextPageToken"
+    "items/snippet(memberDetails/channelId,memberDetails/displayName,membershipsDetails/membershipsLevelId/membershipsLevelId),nextPageToken"
   );
   url.searchParams.set("maxResults", "1000");
   if (pageToken) {
