@@ -2,7 +2,7 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const YOUTUBE_MEMBERS_ENDPOINT =
   "https://youtube.googleapis.com/youtube/v3/members";
 const YOUTUBE_CHANNELS_ENDPOINT =
-  "https://youtube.googleapis.com/youtube/v3/channels?part=id&mine=true";
+  "https://youtube.googleapis.com/youtube/v3/channels?part=id,snippet&mine=true";
 
 type MembershipInfo = {
   channelId: string;
@@ -208,9 +208,9 @@ export const getMembershipForChannel = async (
   }
 };
 
-export const getUserChannelId = async (
+export const getUserChannelProfile = async (
   userAccessToken: string
-): Promise<string | null> => {
+): Promise<{ channelId: string | null; title: string | null; avatarUrl: string | null }> => {
   try {
     const response = await fetch(YOUTUBE_CHANNELS_ENDPOINT, {
       headers: {
@@ -230,14 +230,21 @@ export const getUserChannelId = async (
     }
 
     const data: {
-      items?: Array<{ id?: string }>;
+      items?: Array<{ id?: string; snippet?: { title?: string; thumbnails?: Record<string, { url?: string }> } }>;
     } = await response.json();
 
-    const channelId = data.items?.[0]?.id;
-    return channelId ?? null;
+    const channel = data.items?.[0];
+    const channelId = channel?.id ?? null;
+    const title = channel?.snippet?.title ?? null;
+    const avatarUrl =
+      channel?.snippet?.thumbnails?.medium?.url ??
+      channel?.snippet?.thumbnails?.default?.url ??
+      null;
+
+    return { channelId, title, avatarUrl };
   } catch (error) {
     console.error("[youtube] Error retrieving user channel ID", error);
-    return null;
+    return { channelId: null, title: null, avatarUrl: null };
   }
 };
 

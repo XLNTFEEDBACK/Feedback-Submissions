@@ -3,7 +3,7 @@ import type { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import {
   getMembershipForChannel,
-  getUserChannelId,
+  getUserChannelProfile,
   isUserSubscribedToChannel,
 } from "@/lib/youtube";
 
@@ -85,11 +85,17 @@ export const authOptions: NextAuthOptions = {
 
       if (account?.access_token) {
         try {
-          const channelId = await getUserChannelId(account.access_token);
+          const { channelId, title, avatarUrl } = await getUserChannelProfile(
+            account.access_token
+          );
           token.youtubeChannelId = channelId ?? null;
+          token.youtubeChannelTitle = title ?? null;
+          token.youtubeChannelAvatarUrl = avatarUrl ?? null;
         } catch (error) {
           console.error("[auth] Failed to get user channel ID", error);
           token.youtubeChannelId = null;
+          token.youtubeChannelTitle = null;
+          token.youtubeChannelAvatarUrl = null;
         }
         if (targetChannelIdRaw) {
           try {
@@ -155,6 +161,8 @@ export const authOptions: NextAuthOptions = {
         isSubscriber?: boolean | null;
         membershipTier?: string | null;
         youtubeChannelId?: string | null;
+        youtubeChannelTitle?: string | null;
+        youtubeChannelAvatarUrl?: string | null;
       };
     }) {
       if (session.user) {
@@ -171,6 +179,10 @@ export const authOptions: NextAuthOptions = {
           token.isSubscriber ?? null;
         session.user.membershipTier = token.membershipTier ?? null;
         session.user.youtubeChannelId = token.youtubeChannelId ?? null;
+        session.user.youtubeChannelTitle =
+          token.youtubeChannelTitle ?? null;
+        session.user.youtubeChannelAvatarUrl =
+          token.youtubeChannelAvatarUrl ?? null;
       }
       return session;
     },

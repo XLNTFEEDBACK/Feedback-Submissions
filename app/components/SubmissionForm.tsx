@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
@@ -10,6 +11,8 @@ export default function SubmissionForm() {
   const isMember = session?.user?.isMember ?? false;
   const subscriberStatus = session?.user?.isSubscriber;
   const membershipTier = session?.user?.membershipTier ?? null;
+  const youtubeChannelTitle = session?.user?.youtubeChannelTitle ?? null;
+  const youtubeChannelAvatar = session?.user?.youtubeChannelAvatarUrl ?? null;
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [tiktokHandle, setTiktokHandle] = useState("");
@@ -122,12 +125,31 @@ export default function SubmissionForm() {
                 {session?.user?.email ?? "unknown user"}
               </span>
             </span>
-        {!isAdmin && !isChannelOwner && (
-          <span className="text-xs text-white/50 normal-case">
-            (standard access)
-          </span>
-        )}
+            {!isAdmin && !isChannelOwner && (
+              <span className="text-xs text-white/50 normal-case">
+                (standard access)
+              </span>
+            )}
           </div>
+          {youtubeChannelTitle && (
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-white/60">
+              {youtubeChannelAvatar && (
+                <Image
+                  src={youtubeChannelAvatar}
+                  alt={youtubeChannelTitle}
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 rounded-full border border-white/20 object-cover"
+                />
+              )}
+              <span className="text-white/70 normal-case tracking-normal">
+                YouTube Channel:
+                <span className="ml-2 text-white font-semibold uppercase tracking-[0.2em]">
+                  {youtubeChannelTitle}
+                </span>
+              </span>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase">
             {isChannelOwner && (
               <span className={`${badgeBase} bg-blue-500/80 text-white`}>

@@ -10,6 +10,8 @@ declare module "next-auth" {
       isSubscriber?: boolean | null;
       membershipTier?: string | null;
       youtubeChannelId?: string | null;
+      youtubeChannelTitle?: string | null;
+      youtubeChannelAvatarUrl?: string | null;
     };
   }
 }
@@ -23,6 +25,8 @@ declare module "next-auth/jwt" {
     isSubscriber?: boolean | null;
     membershipTier?: string | null;
     youtubeChannelId?: string | null;
+    youtubeChannelTitle?: string | null;
+    youtubeChannelAvatarUrl?: string | null;
     membershipCheckedAt?: number;
     subscriptionCheckedAt?: number;
   }
