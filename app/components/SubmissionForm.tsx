@@ -81,6 +81,23 @@ export default function SubmissionForm() {
     }
   };
 
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      console.log(
+        "[session] youtube profile",
+        {
+          channelId: session.user.youtubeChannelId ?? null,
+          title: session.user.youtubeChannelTitle ?? null,
+          avatar: session.user.youtubeChannelAvatarUrl ?? null,
+          isMember: session.user.isMember ?? null,
+          membershipTier: session.user.membershipTier ?? null,
+          isSubscriber: session.user.isSubscriber ?? null,
+          role: session.user.role ?? null,
+        }
+      );
+    }
+  }, [status, session?.user]);
+
   const showModal = status === "unauthenticated";
 
   return (
