@@ -109,7 +109,7 @@ const fetchMembershipPage = async (
   pageToken?: string
 ) => {
   const url = new URL(YOUTUBE_MEMBERS_ENDPOINT);
-  url.searchParams.set("part", "snippet,tier");
+  url.searchParams.set("part", "snippet");
   url.searchParams.set("maxResults", "1000");
   if (pageToken) {
     url.searchParams.set("pageToken", pageToken);
