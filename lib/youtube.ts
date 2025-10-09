@@ -138,8 +138,11 @@ const fetchMembershipPage = async (
           channelId?: string;
           displayName?: string;
         };
+        membershipsDetails?: {
+          membershipsLevelId?: string;
+        };
+        channelId?: string;
       };
-      tier?: string;
     }>;
     nextPageToken?: string;
   }>;
