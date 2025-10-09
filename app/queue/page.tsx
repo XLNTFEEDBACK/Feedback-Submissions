@@ -17,6 +17,8 @@ interface Submission {
   submittedByRole?: string;
   isChannelOwner?: boolean;
   isSubscriber?: boolean | null;
+  instagramHandle?: string | null;
+  tiktokHandle?: string | null;
 }
 
 const getTrackDisplay = (url: string) => {
@@ -56,6 +58,38 @@ const getTrackDisplay = (url: string) => {
   };
 };
 
+const buildSocialLink = (
+  handle: string | null | undefined,
+  platform: "instagram" | "tiktok"
+) => {
+  if (!handle) return null;
+  let cleaned = handle.trim();
+  if (!cleaned) return null;
+
+  const isUrl = /^https?:\/\//i.test(cleaned);
+  if (isUrl) {
+    return {
+      url: cleaned,
+      display: cleaned,
+    };
+  }
+
+  cleaned = cleaned.replace(/^@+/g, "");
+  if (!cleaned) return null;
+
+  if (platform === "instagram") {
+    return {
+      url: `https://www.instagram.com/${cleaned}`,
+      display: `@${cleaned}`,
+    };
+  }
+
+  return {
+    url: `https://www.tiktok.com/@${cleaned}`,
+    display: `@${cleaned}`,
+  };
+};
+
 declare global {
   interface Window {
     SC?: {
@@ -74,11 +108,15 @@ export default function QueuePage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set());
   const [widgetReady, setWidgetReady] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
+  const clearConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isAdmin = session?.user?.isAdmin ?? false;
 
@@ -97,6 +135,14 @@ export default function QueuePage() {
     document.body.appendChild(script);
     return () => {
       script.onload = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (clearConfirmTimeoutRef.current) {
+        clearTimeout(clearConfirmTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -296,6 +342,57 @@ export default function QueuePage() {
     [currentPlayingId]
   );
 
+  const handleClearQueue = useCallback(async () => {
+    if (!clearConfirm) {
+      setClearConfirm(true);
+      if (clearConfirmTimeoutRef.current) {
+        clearTimeout(clearConfirmTimeoutRef.current);
+      }
+      clearConfirmTimeoutRef.current = setTimeout(() => {
+        setClearConfirm(false);
+        clearConfirmTimeoutRef.current = null;
+      }, 5000);
+      return;
+    }
+
+    setClearLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      const response = await fetch("/api/queue/clear", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        let message = "Failed to clear queue.";
+        try {
+          const data = await response.json();
+          if (data?.error) {
+            message = data.error;
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
+      }
+
+      setActionNotice("Queue cleared successfully.");
+    } catch (error) {
+      console.error("Failed to clear queue", error);
+      setActionError(
+        error instanceof Error ? error.message : "Failed to clear queue."
+      );
+    } finally {
+      setClearLoading(false);
+      setClearConfirm(false);
+      if (clearConfirmTimeoutRef.current) {
+        clearTimeout(clearConfirmTimeoutRef.current);
+        clearConfirmTimeoutRef.current = null;
+      }
+    }
+  }, [clearConfirm]);
+
   useEffect(() => {
     const submissionsRef = collection(db, "submissions");
 
@@ -313,6 +410,8 @@ export default function QueuePage() {
         submittedByRole: doc.data().submittedByRole,
         isChannelOwner: doc.data().isChannelOwner,
         isSubscriber: doc.data().isSubscriber,
+        instagramHandle: doc.data().instagramHandle ?? null,
+        tiktokHandle: doc.data().tiktokHandle ?? null,
       })) as Submission[];
       setSubmissions(subs);
     });
@@ -344,6 +443,7 @@ export default function QueuePage() {
     }
 
     setActionError(null);
+    setActionNotice(null);
     const currentIndex = sortedSubmissions.findIndex(
       (submission) => submission.id === submissionId
     );
@@ -407,6 +507,7 @@ export default function QueuePage() {
     try {
       setPendingActionId(submissionId);
       setActionError(null);
+      setActionNotice(null);
 
       const response = await fetch(`/api/queue/${submissionId}`, {
         method: "DELETE",
@@ -440,6 +541,31 @@ export default function QueuePage() {
         <div className="text-gray-400 mb-4">
           Sign in with an admin account to manage the queue.
         </div>
+      )}
+
+      {isAdmin && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleClearQueue}
+            disabled={clearLoading}
+            className="rounded border border-red-500 px-3 py-1 text-sm font-semibold text-red-300 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {clearLoading
+              ? "Clearing..."
+              : clearConfirm
+              ? "Confirm Clear"
+              : "Clear Entire Queue"}
+          </button>
+          {clearConfirm && !clearLoading && (
+            <span className="text-sm text-yellow-300">
+              Click again within 5 seconds to delete all submissions.
+            </span>
+          )}
+        </div>
+      )}
+
+      {actionNotice && (
+        <p className="text-green-400 font-semibold mb-4">{actionNotice}</p>
       )}
 
       {actionError && (
@@ -595,8 +721,17 @@ const QueueItem = ({
     ),
   ].filter(Boolean);
 
+  const instagramLink = buildSocialLink(submission.instagramHandle, "instagram");
+  const tiktokLink = buildSocialLink(submission.tiktokHandle, "tiktok");
+  const socialLinks = [
+    instagramLink && { label: "Instagram", ...instagramLink },
+    tiktokLink && { label: "TikTok", ...tiktokLink },
+  ].filter(Boolean) as Array<{ label: string; url: string; display: string }>;
+
   const cardClasses = `mb-4 w-full max-w-3xl rounded-lg border p-4 transition ${
-    hasPlayed
+    isPlaying
+      ? "border-green-400 bg-green-900/60 ring-2 ring-green-400"
+      : hasPlayed
       ? "border-green-500 bg-green-900/40"
       : "border-gray-800 bg-gray-900/60"
   }`;
@@ -614,15 +749,15 @@ const QueueItem = ({
           <button
             onClick={() => onToggleExpand(submission.id, isExpanded)}
             aria-label={isExpanded ? "Collapse" : "Expand"}
-            className={`flex h-8 w-8 items-center justify-center rounded border border-gray-600 text-gray-300 transition hover:bg-gray-800 hover:text-white ${
-              isExpanded ? "rotate-180" : "rotate-0"
-            }`}
+            className="flex h-8 w-8 items-center justify-center rounded border border-gray-600 text-gray-300 transition hover:bg-gray-800 hover:text-white"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-4 w-4"
+              className={`h-4 w-4 transition-transform duration-200 ${
+                isExpanded ? "rotate-180" : "rotate-0"
+              }`}
             >
               <path
                 fillRule="evenodd"
@@ -654,12 +789,24 @@ const QueueItem = ({
               {trackInfo.display}
             </a>
           )}
-          {isExpanded && (
-            <span className="text-xs uppercase text-gray-500">
-              &nbsp;
-            </span>
-          )}
+          {isExpanded && <span className="text-xs uppercase text-gray-500">&nbsp;</span>}
         </div>
+        {socialLinks.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {socialLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-gray-600 px-3 py-1 text-xs font-semibold text-gray-200 transition hover:bg-gray-800 hover:text-white"
+              >
+                <span>{link.label}</span>
+                <span className="text-gray-400">{link.display}</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       {isExpanded && (

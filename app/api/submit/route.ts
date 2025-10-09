@@ -14,7 +14,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { soundcloudLink, priority } = await req.json();
+    const {
+      soundcloudLink,
+      priority,
+      instagramHandle,
+      tiktokHandle,
+    }: {
+      soundcloudLink?: string;
+      priority?: boolean;
+      instagramHandle?: string;
+      tiktokHandle?: string;
+    } = await req.json();
 
     if (!soundcloudLink) {
       return NextResponse.json({ success: false, error: "Missing SoundCloud link." });
@@ -33,6 +43,12 @@ export async function POST(req: NextRequest) {
     const now = Date.now();
     const orderBaseline = derivedPriority ? now - 1_000_000_000 : now;
 
+    const normalizeHandle = (handle?: string | null) => {
+      if (typeof handle !== "string") return null;
+      const trimmed = handle.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    };
+
     const submission = {
       soundcloudLink,
       email: session.user?.email || "",
@@ -47,6 +63,8 @@ export async function POST(req: NextRequest) {
       submittedByRole: isChannelOwner
         ? "owner"
         : session.user?.role ?? "user",
+      instagramHandle: normalizeHandle(instagramHandle),
+      tiktokHandle: normalizeHandle(tiktokHandle),
     };
 
     // Add to Firestore using Admin SDK

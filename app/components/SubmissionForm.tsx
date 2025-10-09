@@ -11,6 +11,8 @@ export default function SubmissionForm() {
   const subscriberStatus = session?.user?.isSubscriber;
   const membershipTier = session?.user?.membershipTier ?? null;
   const [soundcloudLink, setSoundcloudLink] = useState("");
+  const [instagramHandle, setInstagramHandle] = useState("");
+  const [tiktokHandle, setTiktokHandle] = useState("");
   const [priority, setPriority] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,12 @@ export default function SubmissionForm() {
       if (isAdmin) {
         payload.priority = priority;
       }
+      if (instagramHandle.trim()) {
+        payload.instagramHandle = instagramHandle.trim();
+      }
+      if (tiktokHandle.trim()) {
+        payload.tiktokHandle = tiktokHandle.trim();
+      }
 
       const res = await fetch("/api/submit", {
         method: "POST",
@@ -47,6 +55,8 @@ export default function SubmissionForm() {
       if (data.success) {
         setSubmitted(true);
         setSoundcloudLink("");
+        setInstagramHandle("");
+        setTiktokHandle("");
         setPriority(false);
 
         // Redirect to queue page
@@ -162,6 +172,28 @@ export default function SubmissionForm() {
             required
             className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
             placeholder="https://soundcloud.com/your-track"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-white">
+          Instagram Handle (optional):
+          <input
+            type="text"
+            value={instagramHandle}
+            onChange={(e) => setInstagramHandle(e.target.value)}
+            className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
+            placeholder="@username or full URL"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-white">
+          TikTok Handle (optional):
+          <input
+            type="text"
+            value={tiktokHandle}
+            onChange={(e) => setTiktokHandle(e.target.value)}
+            className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
+            placeholder="@username or full URL"
           />
         </label>
 
