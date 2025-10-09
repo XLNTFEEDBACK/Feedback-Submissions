@@ -18,6 +18,13 @@ export default function SubmissionForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const inputClass =
+    "w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white placeholder-white/40 transition focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/30";
+  const labelClass = "flex flex-col gap-2 text-sm font-semibold text-white/70";
+  const badgeBase =
+    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide";
+
+
   useEffect(() => {
     if (!isAdmin && priority) {
       setPriority(false);
@@ -74,7 +81,7 @@ export default function SubmissionForm() {
   const showModal = status === "unauthenticated";
 
   return (
-    <div className="relative bg-black min-h-screen w-full flex flex-col items-center py-10">
+    <div className="relative min-h-screen w-full bg-[#050407] text-white">
       {status === "loading" && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 text-white">
           Loading...
@@ -83,16 +90,16 @@ export default function SubmissionForm() {
 
       {showModal && (
         <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/80 px-4 pt-24">
-          <div className="w-full max-w-xl rounded-lg bg-gray-900 p-8 text-center shadow-xl border border-gray-700">
-            <h2 className="text-2xl font-bold text-white mb-4">
+          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-gradient-to-br from-[#111018] to-[#09070d] p-8 text-center shadow-2xl">
+            <h2 className="text-2xl font-bold text-white mb-3">
               Sign in to submit your track
             </h2>
-            <p className="text-gray-300 mb-6">
+            <p className="text-white/60 mb-6 text-sm">
               Connect with your Google account to access the submission form.
             </p>
             <button
               onClick={() => signIn("google")}
-              className="w-full bg-red-600 hover:bg-red-700 px-6 py-3 rounded text-white font-semibold transition"
+              className="w-full rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white shadow-lg transition hover:opacity-90"
             >
               Sign in with Google
             </button>
@@ -101,61 +108,65 @@ export default function SubmissionForm() {
       )}
 
       {/* Header */}
-      <header className="w-full bg-black py-6 mb-6 opacity-100">
-        <h1 className="text-3xl font-bold text-white text-center">Submit Your Track</h1>
+      <header className="w-full bg-gradient-to-r from-black via-[#120f1b] to-black py-10">
+        <h1 className="text-center text-4xl font-black uppercase tracking-[0.35em] text-white">
+          Submit Your Track
+        </h1>
       </header>
 
       <form
         onSubmit={handleSubmit}
-        className={`flex flex-col gap-4 w-full max-w-xl p-6 bg-gray-900 rounded-md transition ${
-          showModal ? "opacity-30 pointer-events-none" : "opacity-100"
+        className={`mx-auto w-full max-w-2xl -mt-14 flex flex-col gap-6 rounded-2xl border border-white/5 bg-[#0a0811]/80 p-8 shadow-[0_25px_70px_-30px_rgba(255,0,130,0.4)] backdrop-blur transition ${
+          showModal ? "pointer-events-none opacity-30" : "opacity-100"
         }`}
       >
-        <div className="text-white flex flex-col gap-2">
-          <div>
-            Signed in as{" "}
-            <span className="font-semibold">
-              {session?.user?.email ?? "unknown user"}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm tracking-wide text-white/70">
+            <span>
+              Signed in as{" "}
+              <span className="font-semibold text-white">
+                {session?.user?.email ?? "unknown user"}
+              </span>
             </span>
+            {!isAdmin && !isChannelOwner && (
+              <span className="text-xs text-white/50 normal-case">
+                (standard access)
+              </span>
+            )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs uppercase">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase">
             {isChannelOwner && (
-              <span className="inline-flex items-center rounded bg-blue-600 px-2 py-0.5 font-semibold">
+              <span className={`${badgeBase} bg-blue-500/80 text-white`}>
                 Channel Owner
               </span>
             )}
             {isAdmin && (
-              <span className="inline-flex items-center rounded bg-green-700 px-2 py-0.5 font-semibold">
+              <span className={`${badgeBase} bg-emerald-500/80 text-white`}>
                 Admin
               </span>
             )}
-            {!isAdmin && !isChannelOwner && (
-              <span className="text-sm text-gray-400 normal-case">
-                (standard access)
-              </span>
-            )}
             {isMember && (
-              <span className="inline-flex items-center rounded bg-purple-700 px-2 py-0.5 font-semibold">
+              <span className={`${badgeBase} bg-purple-500/80 text-white`}>
                 Member{membershipTier ? ` – ${membershipTier}` : ""}
               </span>
             )}
             {!isMember && (
-              <span className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 font-semibold">
+              <span className={`${badgeBase} bg-white/10 text-white/70`}>
                 Not a Member
               </span>
             )}
             {subscriberStatus === true && (
-              <span className="inline-flex items-center rounded bg-orange-500 px-2 py-0.5 font-semibold">
+              <span className={`${badgeBase} bg-orange-500/80 text-white`}>
                 Subscriber
               </span>
             )}
             {subscriberStatus === false && (
-              <span className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 font-semibold">
+              <span className={`${badgeBase} bg-white/10 text-white/70`}>
                 Not Subscribed
               </span>
             )}
             {subscriberStatus == null && (
-              <span className="inline-flex items-center rounded bg-slate-700 px-2 py-0.5 font-semibold">
+              <span className={`${badgeBase} bg-white/10 text-white/60`}>
                 Subscription Unknown
               </span>
             )}
@@ -163,61 +174,62 @@ export default function SubmissionForm() {
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="w-fit rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white"
+            className="w-fit rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white"
           >
             Sign out
           </button>
         </div>
 
-        <label className="flex flex-col gap-1 text-white">
+        <label className={labelClass}>
           SoundCloud Link:
           <input
             type="url"
             value={soundcloudLink}
             onChange={(e) => setSoundcloudLink(e.target.value)}
             required
-            className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
+            className={inputClass}
             placeholder="https://soundcloud.com/your-track"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-white">
+        <label className={labelClass}>
           Instagram Handle (optional):
           <input
             type="text"
             value={instagramHandle}
             onChange={(e) => setInstagramHandle(e.target.value)}
-            className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
+            className={inputClass}
             placeholder="@username or full URL"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-white">
+        <label className={labelClass}>
           TikTok Handle (optional):
           <input
             type="text"
             value={tiktokHandle}
             onChange={(e) => setTiktokHandle(e.target.value)}
-            className="border border-gray-700 rounded px-2 py-1 bg-black text-white"
+            className={inputClass}
             placeholder="@username or full URL"
           />
         </label>
 
         {isAdmin ? (
-          <label className="flex items-center gap-2 text-white">
-            Priority (admins only):
+          <label className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+            <span>Priority (admins only)</span>
             <input
               type="checkbox"
               checked={priority}
               onChange={(e) => setPriority(e.target.checked)}
+              className="h-4 w-4 cursor-pointer accent-pink-500"
             />
           </label>
         ) : isMember ? (
-          <p className="text-sm text-purple-300">
+          <p className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-purple-200">
             You&apos;re a YouTube member! Your submission jumps the queue automatically.
           </p>
         ) : (
-          <p className="text-sm text-gray-400">
+          <p className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
             Become a YouTube member of XLNTSOUND to get priority placement.
           </p>
         )}
@@ -225,15 +237,21 @@ export default function SubmissionForm() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-lg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "Submitting..." : "Submit Track"}
         </button>
 
         {submitted && (
-          <p className="text-green-500 font-semibold mt-2">We Got Your Track!</p>
+          <p className="mt-2 text-sm font-semibold text-emerald-400">
+            We got your track!
+          </p>
         )}
-        {error && <p className="text-red-500 font-semibold mt-2">{error}</p>}
+        {error && (
+          <p className="mt-2 text-sm font-semibold text-pink-400">
+            {error}
+          </p>
+        )}
       </form>
     </div>
   );
