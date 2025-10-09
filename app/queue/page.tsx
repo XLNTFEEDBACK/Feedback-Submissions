@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode, SVGProps } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
 import { db } from "../firebase/firebase";
@@ -90,7 +91,7 @@ const buildSocialLink = (
   };
 };
 
-const INSTAGRAM_ICON = (props: React.SVGProps<SVGSVGElement>) => (
+const INSTAGRAM_ICON = (props: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
     <path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 7.4a2.9 2.9 0 1 1 0-5.8 2.9 2.9 0 0 1 0 5.8z" />
     <path d="M12.5 1h-9A2.5 2.5 0 0 0 1 3.5v9A2.5 2.5 0 0 0 3.5 15h9a2.5 2.5 0 0 0 2.5-2.5v-9A2.5 2.5 0 0 0 12.5 1zm1 11.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v9z" />
@@ -98,7 +99,7 @@ const INSTAGRAM_ICON = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-const TIKTOK_ICON = (props: React.SVGProps<SVGSVGElement>) => (
+const TIKTOK_ICON = (props: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
     <path d="M15 5c-1.2 0-2.3-.4-3.2-1.1v6.3c0 3-2.4 5.3-5.4 5.3A5.3 5.3 0 0 1 1 10.2c0-2.9 2.3-5.2 5.2-5.3v2.7c-1 .1-1.8.9-1.8 1.9 0 1.1.9 2 2 2 1.1 0 2-.9 2-2V0h2.2c.2 1.7 1.6 3 3.4 3V5z" />
   </svg>
@@ -539,81 +540,94 @@ export default function QueuePage() {
   };
 
   return (
-    <div className="bg-black min-h-screen w-full flex flex-col items-center py-10">
+    <div className="min-h-screen w-full bg-[#050407] px-4 pb-16 pt-12 text-white">
       {/* Header */}
-      <header className="w-full bg-black py-6 mb-6">
-        <h1 className="text-3xl font-bold text-white text-center">
-          THE XLNT QUEUE
+      <header className="mx-auto mb-10 w-full max-w-5xl rounded-2xl border border-white/5 bg-gradient-to-r from-black via-[#151025] to-black py-10 text-center shadow-[0_40px_120px_-60px_rgba(255,0,130,0.6)]">
+        <h1 className="text-4xl font-black uppercase tracking-[0.35em] text-white">
+          The XLNT Queue
         </h1>
+        <p className="mt-3 text-xs uppercase tracking-[0.35em] text-white/50">
+          monitor • prioritize • elevate
+        </p>
       </header>
 
-      {isAdmin ? (
-        <div className="bg-yellow-300 text-black p-2 rounded mb-4 font-semibold">
-          You are viewing as ADMIN
-        </div>
-      ) : (
-        <div className="text-gray-400 mb-4">
-          Sign in with an admin account to manage the queue.
-        </div>
-      )}
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-4">
+        {isAdmin ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.25em] text-white/70">
+            <span>Admin Controls Enabled</span>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.25em] text-white/50">
+            Sign in with an admin account to manage the queue.
+          </div>
+        )}
 
-      {isAdmin && (
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleClearQueue}
-            disabled={clearLoading}
-            className="rounded border border-red-500 px-3 py-1 text-sm font-semibold text-red-300 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {clearLoading
-              ? "Clearing..."
-              : clearConfirm
-              ? "Confirm Clear"
-              : "Clear Entire Queue"}
-          </button>
-          {clearConfirm && !clearLoading && (
-            <span className="text-sm text-yellow-300">
-              Click again within 5 seconds to delete all submissions.
-            </span>
-          )}
-        </div>
-      )}
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-r from-[#1b1022] to-[#0c0712] px-4 py-4 shadow-[0_20px_60px_-45px_rgba(255,0,130,0.6)]">
+            <button
+              onClick={handleClearQueue}
+              disabled={clearLoading}
+              className="rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {clearLoading
+                ? "Clearing..."
+                : clearConfirm
+                ? "Confirm Clear"
+                : "Clear Entire Queue"}
+            </button>
+            {clearConfirm && !clearLoading && (
+              <span className="text-xs uppercase tracking-[0.25em] text-yellow-300">
+                Click again within 5 seconds to delete all submissions.
+              </span>
+            )}
+          </div>
+        )}
 
-      {actionNotice && (
-        <p className="text-green-400 font-semibold mb-4">{actionNotice}</p>
-      )}
+        {actionNotice && (
+          <p className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">
+            {actionNotice}
+          </p>
+        )}
 
-      {actionError && (
-        <p className="text-red-500 font-semibold mb-4">{actionError}</p>
-      )}
+        {actionError && (
+          <p className="rounded-2xl border border-pink-500/20 bg-pink-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.25em] text-pink-300">
+            {actionError}
+          </p>
+        )}
 
-      {sortedSubmissions.length === 0 ? (
-        <p className="text-white">No submissions yet.</p>
-      ) : (
-        sortedSubmissions.map((sub, index) => {
-          const isPlaying = currentPlayingId === sub.id;
-          const isExpanded =
-            isPlaying || autoExpandedIds.has(sub.id) || expandedIds.has(sub.id);
+        {sortedSubmissions.length === 0 ? (
+          <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-12 text-center text-sm uppercase tracking-[0.3em] text-white/60">
+            No submissions yet.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {sortedSubmissions.map((sub, index) => {
+              const isPlaying = currentPlayingId === sub.id;
+              const isExpanded =
+                isPlaying || autoExpandedIds.has(sub.id) || expandedIds.has(sub.id);
 
-          return (
-            <QueueItem
-              key={sub.id}
-              submission={sub}
-              index={index}
-              isExpanded={isExpanded}
-              isPlaying={isPlaying}
-              hasPlayed={playedIds.has(sub.id)}
-              onMove={handleMove}
-              onRemove={handleRemove}
-              pendingActionId={pendingActionId}
-              isAdmin={isAdmin}
-              total={sortedSubmissions.length}
-              onToggleExpand={handleToggleExpand}
-              onPlay={handlePlay}
-              widgetReady={widgetReady}
-            />
-          );
-        })
-      )}
+              return (
+                <QueueItem
+                  key={sub.id}
+                  submission={sub}
+                  index={index}
+                  isExpanded={isExpanded}
+                  isPlaying={isPlaying}
+                  hasPlayed={playedIds.has(sub.id)}
+                  onMove={handleMove}
+                  onRemove={handleRemove}
+                  pendingActionId={pendingActionId}
+                  isAdmin={isAdmin}
+                  total={sortedSubmissions.length}
+                  onToggleExpand={handleToggleExpand}
+                  onPlay={handlePlay}
+                  widgetReady={widgetReady}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -771,17 +785,17 @@ const QueueItem = ({
     },
   ].filter(Boolean) as Array<{
     label: string;
-    icon: React.ReactNode;
+    icon: ReactNode;
     url: string;
     display: string;
   }>;
 
-  const cardClasses = `mb-2 w-full max-w-3xl rounded-lg border p-3 transition ${
+  const cardClasses = `w-full rounded-2xl border bg-gradient-to-br from-[#0f1023] to-[#07060d] p-4 shadow-[0_18px_60px_-40px_rgba(255,0,130,0.55)] transition ${
     isPlaying
-      ? "border-green-400 bg-green-900/60 ring-2 ring-green-400"
+      ? "border-pink-500/60 ring-2 ring-pink-500/60"
       : hasPlayed
-      ? "border-green-500 bg-green-900/40"
-      : "border-gray-800 bg-gray-900/60"
+      ? "border-pink-500/25"
+      : "border-white/12"
   }`;
 
   return (
@@ -797,7 +811,7 @@ const QueueItem = ({
           <button
             onClick={() => onToggleExpand(submission.id, isExpanded)}
             aria-label={isExpanded ? "Collapse" : "Expand"}
-            className="flex h-8 w-8 items-center justify-center rounded border border-gray-600 text-gray-300 transition hover:bg-gray-800 hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded border border-white/15 bg-white/10 text-white/70 transition hover:border-pink-500 hover:text-white"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -855,7 +869,7 @@ const QueueItem = ({
       </div>
 
       {isExpanded && (
-        <div className="mt-2 overflow-hidden rounded-lg">
+        <div className="mt-2 overflow-hidden rounded-xl border border-white/10">
           <iframe
             title={`SoundCloud player ${submission.id}`}
             width="100%"
@@ -876,7 +890,7 @@ const QueueItem = ({
           <button
             onClick={() => onMove(submission.id, "up")}
             disabled={pendingActionId !== null || index === 0}
-            className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             Move Up
           </button>
@@ -885,14 +899,14 @@ const QueueItem = ({
             disabled={
               pendingActionId !== null || index === total - 1
             }
-            className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             Move Down
           </button>
           <button
             onClick={() => onRemove(submission.id)}
             disabled={pendingActionId !== null}
-            className="rounded border border-red-600 px-3 py-1 text-sm text-red-400 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Remove
           </button>
