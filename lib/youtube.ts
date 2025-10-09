@@ -225,7 +225,7 @@ const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
     }
   }
 
-  membersByChannelId.forEach((info, key) => {
+  membersByChannelId.forEach((info) => {
     if (info.membershipLevelId) {
       info.tierName = levelsById.get(info.membershipLevelId) ?? null;
     }

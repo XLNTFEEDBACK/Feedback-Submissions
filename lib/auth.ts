@@ -195,6 +195,7 @@ export const authOptions: NextAuthOptions = {
         isSubscriber?: boolean | null;
         membershipTier?: string | null;
         youtubeChannelId?: string | null;
+        membershipLevelId?: string | null;
         youtubeChannelTitle?: string | null;
         youtubeChannelAvatarUrl?: string | null;
       };
