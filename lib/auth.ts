@@ -91,6 +91,18 @@ export const authOptions: NextAuthOptions = {
           token.youtubeChannelId = channelId ?? null;
           token.youtubeChannelTitle = title ?? null;
           token.youtubeChannelAvatarUrl = avatarUrl ?? null;
+          console.log(
+            "[auth] resolved youtube profile",
+            JSON.stringify(
+              {
+                channelId: token.youtubeChannelId,
+                title: token.youtubeChannelTitle,
+                avatarProvided: Boolean(token.youtubeChannelAvatarUrl),
+              },
+              null,
+              2
+            )
+          );
         } catch (error) {
           console.error("[auth] Failed to get user channel ID", error);
           token.youtubeChannelId = null;
@@ -118,6 +130,13 @@ export const authOptions: NextAuthOptions = {
 
       applyAdminFlags(token);
 
+      if (token.youtubeChannelId) {
+        console.log(
+          "[auth] normalized youtube channel id",
+          token.youtubeChannelId
+        );
+      }
+
       const shouldRefreshMembership =
         token.youtubeChannelId &&
         (!token.membershipCheckedAt ||
@@ -133,6 +152,18 @@ export const authOptions: NextAuthOptions = {
       if (account?.access_token || shouldRefreshMembership) {
         try {
           await assignMembershipFlags(token);
+          console.log(
+            "[auth] membership result",
+            JSON.stringify(
+              {
+                channelId: token.youtubeChannelId,
+                isMember: token.isMember,
+                tier: token.membershipTier,
+              },
+              null,
+              2
+            )
+          );
         } catch (error) {
           console.error("[auth] Failed to resolve membership status", error);
         }
