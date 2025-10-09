@@ -216,6 +216,10 @@ const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
   if (membershipLevelIds.size > 0) {
     try {
       const levelResponse = await fetchMembershipLevels(ownerAccessToken);
+      console.log(
+        "[youtube] membershipsLevels response",
+        JSON.stringify(levelResponse, null, 2)
+      );
       levelResponse?.items?.forEach((level) => {
         const id = level.id;
         const name = level.snippet?.displayName;
@@ -233,6 +237,18 @@ const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
       info.tierName = levelsById.get(info.membershipLevelId) ?? null;
     }
   });
+
+  console.log(
+    "[youtube] hydrated membership cache",
+    JSON.stringify(
+      {
+        memberCount: membersByChannelId.size,
+        members: Array.from(membersByChannelId.values()).slice(0, 50),
+      },
+      null,
+      2
+    )
+  );
 
   membershipCache = {
     membersByChannelId,
