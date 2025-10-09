@@ -90,16 +90,16 @@ const buildSocialLink = (
   };
 };
 
-const INSTAGRAM_ICON = (
-  <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+const INSTAGRAM_ICON = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
     <path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 7.4a2.9 2.9 0 1 1 0-5.8 2.9 2.9 0 0 1 0 5.8z" />
     <path d="M12.5 1h-9A2.5 2.5 0 0 0 1 3.5v9A2.5 2.5 0 0 0 3.5 15h9a2.5 2.5 0 0 0 2.5-2.5v-9A2.5 2.5 0 0 0 12.5 1zm1 11.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v9z" />
     <circle cx="12.1" cy="3.9" r=".9" />
   </svg>
 );
 
-const TIKTOK_ICON = (
-  <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+const TIKTOK_ICON = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
     <path d="M15 5c-1.2 0-2.3-.4-3.2-1.1v6.3c0 3-2.4 5.3-5.4 5.3A5.3 5.3 0 0 1 1 10.2c0-2.9 2.3-5.2 5.2-5.3v2.7c-1 .1-1.8.9-1.8 1.9 0 1.1.9 2 2 2 1.1 0 2-.9 2-2V0h2.2c.2 1.7 1.6 3 3.4 3V5z" />
   </svg>
 );
@@ -759,11 +759,19 @@ const QueueItem = ({
   const instagramLink = buildSocialLink(submission.instagramHandle, "instagram");
   const tiktokLink = buildSocialLink(submission.tiktokHandle, "tiktok");
   const socialLinks = [
-    instagramLink && { label: "Instagram", icon: INSTAGRAM_ICON, ...instagramLink },
-    tiktokLink && { label: "TikTok", icon: TIKTOK_ICON, ...tiktokLink },
+    instagramLink && {
+      label: "Instagram",
+      icon: <INSTAGRAM_ICON className="h-3 w-3" />,
+      ...instagramLink,
+    },
+    tiktokLink && {
+      label: "TikTok",
+      icon: <TIKTOK_ICON className="h-3 w-3" />,
+      ...tiktokLink,
+    },
   ].filter(Boolean) as Array<{
     label: string;
-    icon: JSX.Element;
+    icon: React.ReactNode;
     url: string;
     display: string;
   }>;
