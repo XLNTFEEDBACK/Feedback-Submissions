@@ -81,7 +81,7 @@ export default function SubmissionForm() {
   const showModal = status === "unauthenticated";
 
   return (
-    <div className="relative min-h-screen w-full bg-[#050407] text-white">
+    <div className="relative min-h-screen w-full bg-transparent text-white">
       {status === "loading" && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 text-white">
           Loading...
@@ -108,15 +108,9 @@ export default function SubmissionForm() {
       )}
 
       {/* Header */}
-      <header className="w-full bg-gradient-to-r from-black via-[#120f1b] to-black py-10">
-        <h1 className="text-center text-4xl font-black uppercase tracking-[0.35em] text-white">
-          Submit Your Track
-        </h1>
-      </header>
-
       <form
         onSubmit={handleSubmit}
-        className={`mx-auto w-full max-w-2xl -mt-14 flex flex-col gap-6 rounded-2xl border border-white/5 bg-[#0a0811]/80 p-8 shadow-[0_25px_70px_-30px_rgba(255,0,130,0.4)] backdrop-blur transition ${
+        className={`mx-auto w-full max-w-2xl flex flex-col gap-6 rounded-2xl border border-white/5 bg-[#0a0811]/80 p-8 shadow-[0_25px_70px_-30px_rgba(255,0,130,0.4)] backdrop-blur transition ${
           showModal ? "pointer-events-none opacity-30" : "opacity-100"
         }`}
       >
@@ -128,11 +122,11 @@ export default function SubmissionForm() {
                 {session?.user?.email ?? "unknown user"}
               </span>
             </span>
-            {!isAdmin && !isChannelOwner && (
-              <span className="text-xs text-white/50 normal-case">
-                (standard access)
-              </span>
-            )}
+        {!isAdmin && !isChannelOwner && (
+          <span className="text-xs text-white/50 normal-case">
+            (standard access)
+          </span>
+        )}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase">
             {isChannelOwner && (
@@ -171,13 +165,13 @@ export default function SubmissionForm() {
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="w-fit rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white"
-          >
-            Sign out
-          </button>
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className="w-fit rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white"
+        >
+          Sign out
+        </button>
         </div>
 
         <label className={labelClass}>
