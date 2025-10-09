@@ -1,18 +1,22 @@
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const YOUTUBE_MEMBERS_ENDPOINT =
   "https://youtube.googleapis.com/youtube/v3/members";
+const YOUTUBE_MEMBERSHIP_LEVELS_ENDPOINT =
+  "https://youtube.googleapis.com/youtube/v3/membershipsLevels";
 const YOUTUBE_CHANNELS_ENDPOINT =
   "https://youtube.googleapis.com/youtube/v3/channels?part=id,snippet&mine=true";
 
 type MembershipInfo = {
   channelId: string;
   displayName?: string;
-  tier?: string;
+  membershipLevelId?: string | null;
+  tierName?: string | null;
 };
 
 type MembershipCache = {
   expiresAt: number;
   membersByChannelId: Map<string, MembershipInfo>;
+  levelsById: Map<string, string>;
 };
 
 let ownerTokenCache:
@@ -105,7 +109,7 @@ const fetchMembershipPage = async (
   pageToken?: string
 ) => {
   const url = new URL(YOUTUBE_MEMBERS_ENDPOINT);
-  url.searchParams.set("part", "snippet,tier");
+  url.searchParams.set("part", "snippet,memberDetails,membershipsDetails");
   url.searchParams.set("maxResults", "1000");
   if (pageToken) {
     url.searchParams.set("pageToken", pageToken);
@@ -141,6 +145,36 @@ const fetchMembershipPage = async (
   }>;
 };
 
+const fetchMembershipLevels = async (ownerAccessToken: string) => {
+  const url = new URL(YOUTUBE_MEMBERSHIP_LEVELS_ENDPOINT);
+  url.searchParams.set("part", "snippet");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${ownerAccessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    console.error(
+      "[youtube] Failed to fetch membership levels",
+      response.status,
+      await response.text()
+    );
+    return null;
+  }
+
+  return response.json() as Promise<{
+    items?: Array<{
+      id?: string;
+      snippet?: {
+        displayName?: string;
+      };
+    }>;
+  }>;
+};
+
 const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
   const ownerAccessToken = await fetchOwnerAccessToken();
   if (!ownerAccessToken) {
@@ -148,26 +182,58 @@ const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
   }
 
   const membersByChannelId = new Map<string, MembershipInfo>();
+  const membershipLevelIds = new Set<string>();
 
   let pageToken: string | undefined;
   do {
     const page = await fetchMembershipPage(ownerAccessToken, pageToken);
     page.items?.forEach((item) => {
-      const channelId = item.snippet?.memberDetails?.channelId;
+      const channelId =
+        item.snippet?.memberDetails?.channelId ??
+        item.snippet?.channelId ??
+        null;
       if (!channelId) {
         return;
+      }
+      const membershipLevelId =
+        item.snippet?.membershipsDetails?.membershipsLevelId ?? null;
+      if (membershipLevelId) {
+        membershipLevelIds.add(membershipLevelId);
       }
       membersByChannelId.set(channelId.toLowerCase(), {
         channelId,
         displayName: item.snippet?.memberDetails?.displayName,
-        tier: item.tier,
+        membershipLevelId,
       });
     });
     pageToken = page.nextPageToken;
   } while (pageToken);
 
+  const levelsById = new Map<string, string>();
+  if (membershipLevelIds.size > 0) {
+    try {
+      const levelResponse = await fetchMembershipLevels(ownerAccessToken);
+      levelResponse?.items?.forEach((level) => {
+        const id = level.id;
+        const name = level.snippet?.displayName;
+        if (id && name) {
+          levelsById.set(id, name);
+        }
+      });
+    } catch (error) {
+      console.error("[youtube] Unable to resolve membership level names", error);
+    }
+  }
+
+  membersByChannelId.forEach((info, key) => {
+    if (info.membershipLevelId) {
+      info.tierName = levelsById.get(info.membershipLevelId) ?? null;
+    }
+  });
+
   membershipCache = {
     membersByChannelId,
+    levelsById,
     expiresAt: Date.now() + MEMBERSHIP_CACHE_TTL_MS,
   };
 

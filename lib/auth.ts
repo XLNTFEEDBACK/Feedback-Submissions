@@ -31,12 +31,14 @@ const assignMembershipFlags = async (token: JWT) => {
   if (!channelId) {
     token.isMember = false;
     token.membershipTier = null;
+    token.membershipLevelId = null;
     return;
   }
 
   const membership = await getMembershipForChannel(channelId);
   token.isMember = Boolean(membership);
-  token.membershipTier = membership?.tier ?? null;
+  token.membershipTier = membership?.tierName ?? null;
+  token.membershipLevelId = membership?.membershipLevelId ?? null;
   token.membershipCheckedAt = Date.now();
 };
 
@@ -159,6 +161,7 @@ export const authOptions: NextAuthOptions = {
                 channelId: token.youtubeChannelId,
                 isMember: token.isMember,
                 tier: token.membershipTier,
+                membershipLevelId: token.membershipLevelId,
               },
               null,
               2
@@ -209,6 +212,7 @@ export const authOptions: NextAuthOptions = {
         session.user.isSubscriber =
           token.isSubscriber ?? null;
         session.user.membershipTier = token.membershipTier ?? null;
+        session.user.membershipLevelId = token.membershipLevelId ?? null;
         session.user.youtubeChannelId = token.youtubeChannelId ?? null;
         session.user.youtubeChannelTitle =
           token.youtubeChannelTitle ?? null;
