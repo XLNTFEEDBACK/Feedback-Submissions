@@ -196,7 +196,6 @@ const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
     page.items?.forEach((item) => {
       const channelId =
         item.snippet?.memberDetails?.channelId ??
-        item.snippet?.channelId ??
         null;
       if (!channelId) {
         return;
