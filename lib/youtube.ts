@@ -109,7 +109,7 @@ const fetchMembershipPage = async (
   pageToken?: string
 ) => {
   const url = new URL(YOUTUBE_MEMBERS_ENDPOINT);
-  url.searchParams.set("part", "snippet,membershipsDetails");
+  url.searchParams.set("part", "snippet,tier");
   url.searchParams.set("maxResults", "1000");
   if (pageToken) {
     url.searchParams.set("pageToken", pageToken);
@@ -189,6 +189,10 @@ const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
   let pageToken: string | undefined;
   do {
     const page = await fetchMembershipPage(ownerAccessToken, pageToken);
+    console.log(
+      "[youtube] membership page raw",
+      JSON.stringify(page, null, 2)
+    );
     page.items?.forEach((item) => {
       const channelId =
         item.snippet?.memberDetails?.channelId ??
