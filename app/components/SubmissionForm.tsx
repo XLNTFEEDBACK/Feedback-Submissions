@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
 const getTrackDisplay = (url: string) => {
   try {
@@ -70,12 +71,7 @@ export default function SubmissionForm() {
   const [existingSubmissionId, setExistingSubmissionId] = useState<string | null>(null);
   const [existingSoundcloudLink, setExistingSoundcloudLink] = useState<string | null>(null);
 
-  const inputClass =
-    "w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white placeholder-white/40 transition focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/30";
-  const labelClass = "flex flex-col gap-2 text-sm font-semibold text-white/70";
-  const badgeBase =
-    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide";
-
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin && priority) {
@@ -120,12 +116,10 @@ export default function SubmissionForm() {
         setShowReplaceModal(false);
         setPendingSubmission(null);
 
-        // Redirect to queue page after a brief delay to show success message
         setTimeout(() => {
           router.push("/queue");
         }, 500);
       } else if (data.alreadyExists) {
-        // User already has a submission - show replace modal
         setPendingSubmission({
           soundcloudLink,
           instagramHandle,
@@ -186,7 +180,6 @@ export default function SubmissionForm() {
         setExistingSubmissionId(null);
         setExistingSoundcloudLink(null);
 
-        // Redirect to queue page after a brief delay to show success message
         setTimeout(() => {
           router.push("/queue");
         }, 500);
@@ -228,248 +221,400 @@ export default function SubmissionForm() {
   const showModal = status === "unauthenticated";
 
   return (
-    <div className="relative min-h-screen w-full bg-transparent text-white">
+    <div className="relative min-h-screen w-full text-white">
       {/* Navigation buttons in top right */}
-      <div className="fixed top-4 right-4 z-10 flex gap-2">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="fixed top-4 right-4 z-10 flex gap-2"
+      >
         <Link
           href="/queue"
-          className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white backdrop-blur-sm"
+          className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
         >
-          View Queue
+          <span className="relative z-10">View Queue</span>
+          <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </Link>
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: "/" })}
-          className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white backdrop-blur-sm"
+          className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-red-500 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(255,0,0,0.3)]"
         >
-          Sign out
+          <span className="relative z-10">Sign Out</span>
+          <span className="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-red-500/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </button>
-      </div>
+      </motion.div>
 
-      {status === "loading" && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 text-white">
-          Loading...
-        </div>
-      )}
-
-      {showModal && (
-        <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/80 px-4 pt-24">
-          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-gradient-to-br from-[#111018] to-[#09070d] p-8 text-center shadow-2xl">
-            <h2 className="text-2xl font-bold text-white mb-3">
-              Sign in to submit your track
-            </h2>
-            <p className="text-white/60 mb-6 text-sm">
-              Connect with your Google account to access the submission form.
-            </p>
-            <button
-              onClick={() => signIn("google")}
-              className="w-full rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white shadow-lg transition hover:opacity-90"
-            >
-              Sign in with Google
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showReplaceModal && (
-        <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/80 px-4 pt-24">
-          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-gradient-to-br from-[#111018] to-[#09070d] p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-white mb-3">
-              Already in Queue
-            </h2>
-            <p className="text-white/60 mb-4 text-sm">
-              You already have a track in the queue:
-            </p>
-            {existingSoundcloudLink && (
-              <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-4">
-                <p className="text-sm font-semibold text-white">
-                  {getTrackDisplay(existingSoundcloudLink).display}
-                </p>
-                <a
-                  href={existingSoundcloudLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-white/60 hover:text-white/80 mt-1 block break-all"
-                >
-                  {existingSoundcloudLink}
-                </a>
-              </div>
-            )}
-            <p className="text-white/60 mb-6 text-sm">
-              Would you like to replace it with your new track?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={handleReplaceSubmission}
-                disabled={loading}
-                className="flex-1 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white shadow-lg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? "Replacing..." : "Yes, Replace"}
-              </button>
-              <button
-                onClick={handleCancelReplace}
-                disabled={loading}
-                className="flex-1 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
+      {/* Loading State */}
+      <AnimatePresence>
+        {status === "loading" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          >
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[var(--accent-cyan)]" />
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Loading...</p>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Header */}
-      <form
+      {/* Sign In Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 flex items-center justify-center bg-black/90 px-4 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="w-full max-w-xl overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-10 text-center shadow-[0_40px_120px_-40px_rgba(0,229,255,0.4)] relative"
+            >
+              {/* Accent glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-[var(--accent-cyan)] to-transparent opacity-80" />
+
+              <h2 className="text-3xl font-black uppercase tracking-[0.2em] text-white mb-4">
+                Sign In Required
+              </h2>
+              <p className="text-white/60 mb-8 text-sm leading-relaxed">
+                Connect with your Google account to submit your track and join the feedback queue.
+              </p>
+              <motion.button
+                onClick={() => signIn("google")}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full rounded-full bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 px-8 py-4 text-sm font-black uppercase tracking-[0.25em] text-black shadow-[0_20px_60px_-20px_rgba(0,229,255,0.6)] transition-all duration-300 hover:shadow-[0_20px_60px_-10px_rgba(0,229,255,0.8)]"
+              >
+                Sign In with Google
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Replace Track Modal */}
+      <AnimatePresence>
+        {showReplaceModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 flex items-center justify-center bg-black/90 px-4 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="w-full max-w-xl overflow-hidden rounded-3xl border border-[var(--accent-amber)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-10 shadow-[0_40px_120px_-40px_rgba(255,184,0,0.4)] relative"
+            >
+              {/* Accent glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-[var(--accent-amber)] to-transparent opacity-80" />
+
+              <h2 className="text-3xl font-black uppercase tracking-[0.2em] text-white mb-4">
+                Already in Queue
+              </h2>
+              <p className="text-white/60 mb-4 text-sm">
+                You already have a track in the queue:
+              </p>
+              {existingSoundcloudLink && (
+                <div className="mb-6 rounded-xl border border-white/10 bg-black/40 p-5">
+                  <p className="text-base font-bold text-white mb-2">
+                    {getTrackDisplay(existingSoundcloudLink).display}
+                  </p>
+                  <a
+                    href={existingSoundcloudLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[var(--accent-cyan)] hover:text-white transition-colors duration-200 break-all"
+                  >
+                    {existingSoundcloudLink}
+                  </a>
+                </div>
+              )}
+              <p className="text-white/60 mb-8 text-sm">
+                Would you like to replace it with your new track?
+              </p>
+              <div className="flex gap-3">
+                <motion.button
+                  onClick={handleReplaceSubmission}
+                  disabled={loading}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex-1 rounded-full bg-gradient-to-r from-[var(--accent-amber)] to-orange-500 px-6 py-4 text-sm font-black uppercase tracking-[0.25em] text-black shadow-lg transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,184,0,0.5)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "Replacing..." : "Yes, Replace"}
+                </motion.button>
+                <motion.button
+                  onClick={handleCancelReplace}
+                  disabled={loading}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex-1 rounded-full border border-white/20 bg-white/5 px-6 py-4 text-sm font-black uppercase tracking-[0.25em] text-white/70 transition-all duration-300 hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Main Form */}
+      <motion.form
         onSubmit={handleSubmit}
-        className={`mx-auto w-full max-w-2xl flex flex-col gap-6 rounded-2xl border border-white/5 bg-[#0a0811]/80 p-8 shadow-[0_25px_70px_-30px_rgba(255,0,130,0.4)] backdrop-blur transition ${
-          showModal || showReplaceModal ? "pointer-events-none opacity-30" : "opacity-100"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className={`mx-auto w-full max-w-2xl flex flex-col gap-6 rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-8 shadow-[0_40px_120px_-40px_rgba(255,0,170,0.5)] transition-all duration-300 ${
+          showModal || showReplaceModal ? "pointer-events-none opacity-30 blur-sm" : "opacity-100"
         }`}
       >
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm tracking-wide text-white/70">
+        {/* User Info Section */}
+        <div className="flex flex-col gap-4 pb-6 border-b border-white/10">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
             <span>
               Signed in as{" "}
-              <span className="font-semibold text-white">
+              <span className="font-bold text-white">
                 {session?.user?.email ?? "unknown user"}
               </span>
             </span>
-            {!isAdmin && !isChannelOwner && (
-              <span className="text-xs text-white/50 normal-case">
-                (standard access)
-              </span>
-            )}
           </div>
+
           {youtubeChannelTitle && (
-            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-white/60">
+            <div className="flex items-center gap-3">
               {youtubeChannelAvatar && (
                 <Image
                   src={youtubeChannelAvatar}
                   alt={youtubeChannelTitle}
-                  width={28}
-                  height={28}
-                  className="h-7 w-7 rounded-full border border-white/20 object-cover"
+                  width={32}
+                  height={32}
+                  className="h-8 w-8 rounded-full border-2 border-white/20 object-cover"
                 />
               )}
-              <span className="text-white/70 normal-case tracking-normal">
-                YouTube Channel:
-                <span className="ml-2 text-white font-semibold">
+              <div className="flex flex-col">
+                <span className="text-xs uppercase tracking-[0.15em] text-white/50">
+                  YouTube Channel
+                </span>
+                <span className="text-sm font-bold text-white">
                   {youtubeChannelTitle}
                 </span>
-              </span>
+              </div>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase">
+
+          {/* Badges */}
+          <div className="flex flex-wrap items-center gap-2">
             {isChannelOwner && (
-              <span className={`${badgeBase} bg-blue-500/80 text-white`}>
-                Channel Owner
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                  <path d="M8 0l2.469 4.995 5.531.805-4 3.894.944 5.506-4.944-2.598-4.944 2.598.944-5.506-4-3.894 5.531-.805z" />
+                </svg>
+                Owner
               </span>
             )}
             {isAdmin && (
-              <span className={`${badgeBase} bg-emerald-500/80 text-white`}>
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-emerald-500 to-green-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                  <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+                </svg>
                 Admin
               </span>
             )}
             {isMember && (
-              <span className={`${badgeBase} bg-purple-500/80 text-white`}>
-                Member{membershipTier ? ` – ${membershipTier}` : ""}
-              </span>
-            )}
-            {!isMember && (
-              <span className={`${badgeBase} bg-white/10 text-white/70`}>
-                Not a Member
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-purple-600 to-[var(--accent-magenta)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                  <path d="M8 12l-3.5 2.1 1-4-3-2.6 4-.3L8 3l1.5 4.2 4 .3-3 2.6 1 4z" />
+                </svg>
+                Member{membershipTier ? ` ${membershipTier}` : ""}
               </span>
             )}
             {subscriberStatus === true && (
-              <span className={`${badgeBase} bg-orange-500/80 text-white`}>
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-500 to-[var(--accent-amber)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                  <path d="M15 8L1 15V1l14 7z" />
+                </svg>
                 Subscriber
-              </span>
-            )}
-            {subscriberStatus === false && (
-              <span className={`${badgeBase} bg-white/10 text-white/70`}>
-                Not Subscribed
-              </span>
-            )}
-            {subscriberStatus == null && (
-              <span className={`${badgeBase} bg-white/10 text-white/60`}>
-                Subscription Unknown
               </span>
             )}
           </div>
         </div>
 
-        <label className={labelClass}>
-          SoundCloud Link:
-          <input
-            type="url"
-            value={soundcloudLink}
-            onChange={(e) => setSoundcloudLink(e.target.value)}
-            required
-            className={inputClass}
-            placeholder="https://soundcloud.com/your-track"
-          />
-        </label>
+        {/* Form Fields */}
+        <div className="flex flex-col gap-5">
+          {/* SoundCloud Link Input */}
+          <label className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              SoundCloud Link:
+            </span>
+            <div className="relative">
+              <input
+                type="url"
+                value={soundcloudLink}
+                onChange={(e) => setSoundcloudLink(e.target.value)}
+                onFocus={() => setFocusedInput("soundcloud")}
+                onBlur={() => setFocusedInput(null)}
+                required
+                className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
+                  focusedInput === "soundcloud"
+                    ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
+                    : "border-white/10 hover:border-white/20"
+                }`}
+                placeholder="https://soundcloud.com/your-track"
+              />
+              {focusedInput === "soundcloud" && (
+                <motion.div
+                  layoutId="input-glow"
+                  className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+            </div>
+          </label>
 
-        <label className={labelClass}>
-          Instagram Handle (optional):
-          <input
-            type="text"
-            value={instagramHandle}
-            onChange={(e) => setInstagramHandle(e.target.value)}
-            className={inputClass}
-            placeholder="@username or full URL"
-          />
-        </label>
+          {/* Instagram Input */}
+          <label className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              Instagram (optional):
+            </span>
+            <div className="relative">
+              <input
+                type="text"
+                value={instagramHandle}
+                onChange={(e) => setInstagramHandle(e.target.value)}
+                onFocus={() => setFocusedInput("instagram")}
+                onBlur={() => setFocusedInput(null)}
+                className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
+                  focusedInput === "instagram"
+                    ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
+                    : "border-white/10 hover:border-white/20"
+                }`}
+                placeholder="@username or full URL"
+              />
+              {focusedInput === "instagram" && (
+                <motion.div
+                  layoutId="input-glow"
+                  className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+            </div>
+          </label>
 
-        <label className={labelClass}>
-          TikTok Handle (optional):
-          <input
-            type="text"
-            value={tiktokHandle}
-            onChange={(e) => setTiktokHandle(e.target.value)}
-            className={inputClass}
-            placeholder="@username or full URL"
-          />
-        </label>
+          {/* TikTok Input */}
+          <label className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              TikTok (optional):
+            </span>
+            <div className="relative">
+              <input
+                type="text"
+                value={tiktokHandle}
+                onChange={(e) => setTiktokHandle(e.target.value)}
+                onFocus={() => setFocusedInput("tiktok")}
+                onBlur={() => setFocusedInput(null)}
+                className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
+                  focusedInput === "tiktok"
+                    ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
+                    : "border-white/10 hover:border-white/20"
+                }`}
+                placeholder="@username or full URL"
+              />
+              {focusedInput === "tiktok" && (
+                <motion.div
+                  layoutId="input-glow"
+                  className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+            </div>
+          </label>
+        </div>
 
+        {/* Priority / Member Status */}
         {isAdmin ? (
-          <label className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-            <span>Priority (admins only)</span>
+          <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 px-5 py-4 cursor-pointer transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              Priority (Admins Only)
+            </span>
             <input
               type="checkbox"
               checked={priority}
               onChange={(e) => setPriority(e.target.checked)}
-              className="h-4 w-4 cursor-pointer accent-pink-500"
+              className="h-5 w-5 cursor-pointer accent-[var(--accent-cyan)] rounded transition-all"
             />
           </label>
         ) : isMember ? (
-          <p className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-purple-200">
-            You&apos;re a YouTube member! Your submission jumps the queue automatically.
-          </p>
+          <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-5 py-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-purple-200 flex items-center gap-2">
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
+                <path d="M8 12l-3.5 2.1 1-4-3-2.6 4-.3L8 3l1.5 4.2 4 .3-3 2.6 1 4z" />
+              </svg>
+              You&apos;re a YouTube member! Your submission jumps the queue automatically.
+            </p>
+          </div>
         ) : (
-          <p className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
-            Become a YouTube member of XLNTSOUND to get priority placement.
-          </p>
+          <div className="rounded-xl border border-white/10 bg-white/5 px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
+              Become a YouTube member of XLNTSOUND to get priority placement.
+            </p>
+          </div>
         )}
 
-        <button
+        {/* Submit Button */}
+        <motion.button
           type="submit"
           disabled={loading}
-          className="rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-lg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          whileHover={{ scale: loading ? 1 : 1.02 }}
+          whileTap={{ scale: loading ? 1 : 0.98 }}
+          className="rounded-full bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 px-8 py-4 text-sm font-black uppercase tracking-[0.3em] text-black shadow-[0_20px_60px_-20px_rgba(0,229,255,0.6)] transition-all duration-300 hover:shadow-[0_20px_60px_-10px_rgba(0,229,255,0.8)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Submitting..." : "Submit Track"}
-        </button>
+          {loading ? (
+            <span className="flex items-center justify-center gap-3">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />
+              Submitting...
+            </span>
+          ) : (
+            "Submit Track"
+          )}
+        </motion.button>
 
-        {submitted && (
-          <p className="mt-2 text-sm font-semibold text-emerald-400">
-            We got your track!
-          </p>
-        )}
-        {error && (
-          <p className="mt-2 text-sm font-semibold text-pink-400">
-            {error}
-          </p>
-        )}
-      </form>
+        {/* Success/Error Messages */}
+        <AnimatePresence>
+          {submitted && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="text-center text-sm font-bold text-emerald-400"
+            >
+              ✓ We got your track!
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {error && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="rounded-xl border border-[var(--accent-magenta)]/30 bg-[var(--accent-magenta)]/10 px-4 py-3 text-center text-sm font-bold text-[var(--accent-magenta)]"
+            >
+              {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </motion.form>
     </div>
   );
 }
