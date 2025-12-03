@@ -436,9 +436,12 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         <div className="flex flex-col gap-5">
           {/* SoundCloud Link Input */}
           <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-              SoundCloud Link:
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+                SoundCloud Link:
+              </span>
+              <span className="text-xs text-red-500 font-bold">*</span>
+            </div>
             <div className="relative">
               <input
                 type="url"
@@ -464,63 +467,66 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
             </div>
           </label>
 
-          {/* Instagram Input */}
-          <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-              Instagram (optional):
-            </span>
-            <div className="relative">
-              <input
-                type="text"
-                value={instagramHandle}
-                onChange={(e) => setInstagramHandle(e.target.value)}
-                onFocus={() => setFocusedInput("instagram")}
-                onBlur={() => setFocusedInput(null)}
-                className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
-                  focusedInput === "instagram"
-                    ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
-                    : "border-white/10 hover:border-white/20"
-                }`}
-                placeholder="@username or full URL"
-              />
-              {focusedInput === "instagram" && (
-                <motion.div
-                  layoutId="input-glow"
-                  className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+          {/* Instagram and TikTok Handles */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Instagram Label and Input */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold tracking-wide text-white/50">
+                Instagram:
+              </span>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={instagramHandle}
+                  onChange={(e) => setInstagramHandle(e.target.value)}
+                  onFocus={() => setFocusedInput("instagram")}
+                  onBlur={() => setFocusedInput(null)}
+                  className={`w-full rounded-lg border bg-black/40 px-3 py-2.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
+                    focusedInput === "instagram"
+                      ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
+                      : "border-white/10 hover:border-white/20"
+                  }`}
+                  placeholder="@username"
                 />
-              )}
+                {focusedInput === "instagram" && (
+                  <motion.div
+                    layoutId="input-glow-instagram"
+                    className="absolute -inset-[1px] rounded-lg bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+              </div>
             </div>
-          </label>
 
-          {/* TikTok Input */}
-          <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-              TikTok (optional):
-            </span>
-            <div className="relative">
-              <input
-                type="text"
-                value={tiktokHandle}
-                onChange={(e) => setTiktokHandle(e.target.value)}
-                onFocus={() => setFocusedInput("tiktok")}
-                onBlur={() => setFocusedInput(null)}
-                className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
-                  focusedInput === "tiktok"
-                    ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
-                    : "border-white/10 hover:border-white/20"
-                }`}
-                placeholder="@username or full URL"
-              />
-              {focusedInput === "tiktok" && (
-                <motion.div
-                  layoutId="input-glow"
-                  className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+            {/* TikTok Label and Input */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold tracking-wide text-white/50">
+                TikTok:
+              </span>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={tiktokHandle}
+                  onChange={(e) => setTiktokHandle(e.target.value)}
+                  onFocus={() => setFocusedInput("tiktok")}
+                  onBlur={() => setFocusedInput(null)}
+                  className={`w-full rounded-lg border bg-black/40 px-3 py-2.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
+                    focusedInput === "tiktok"
+                      ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
+                      : "border-white/10 hover:border-white/20"
+                  }`}
+                  placeholder="@username"
                 />
-              )}
+                {focusedInput === "tiktok" && (
+                  <motion.div
+                    layoutId="input-glow-tiktok"
+                    className="absolute -inset-[1px] rounded-lg bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+              </div>
             </div>
-          </label>
+          </div>
         </div>
 
 
