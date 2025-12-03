@@ -655,15 +655,14 @@ export default function QueuePage() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.18 }}
         className="fixed top-4 right-4 z-10"
       >
         <Link
           href="/submit"
-          className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-5 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)] transition-all hover:border-[var(--border-lighter)] hover:text-[var(--text-primary)]"
         >
-          <span className="relative z-10">Submit Track</span>
-          <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          Submit Track
         </Link>
       </motion.div>
 
@@ -671,17 +670,13 @@ export default function QueuePage() {
       <motion.header
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-        className="mx-auto mb-12 w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] via-[var(--surface-elevated)] to-[var(--surface-card)] py-12 text-center shadow-[0_40px_120px_-60px_rgba(0,229,255,0.4)] relative"
+        transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+        className="mx-auto mb-12 w-full max-w-5xl overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-darkest)] py-12 text-center shadow-[var(--shadow-lg)]"
       >
-        {/* Accent glow bars */}
-        <div className="absolute top-0 left-1/4 w-32 h-1 bg-gradient-to-r from-transparent via-[var(--accent-cyan)] to-transparent opacity-60" />
-        <div className="absolute bottom-0 right-1/4 w-32 h-1 bg-gradient-to-r from-transparent via-[var(--accent-magenta)] to-transparent opacity-60" />
-
-        <h1 className="text-5xl font-black uppercase tracking-[0.4em] text-white drop-shadow-[0_2px_10px_rgba(0,229,255,0.3)]">
+        <h1 className="text-5xl font-bold uppercase tracking-[0.2em] text-[var(--text-primary)]">
           Feedback Queue
         </h1>
-        <p className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-white/50">
+        <p className="mt-4 text-sm font-semibold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
           Track • Review • Level Up
         </p>
       </motion.header>
@@ -693,11 +688,11 @@ export default function QueuePage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
+              className="overflow-hidden hidden sm:block"
             >
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--accent-cyan)]/20 bg-[var(--accent-cyan)]/5 px-5 py-3 text-xs font-bold uppercase tracking-[0.25em] text-[var(--accent-cyan)]">
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--accent-interaction)]/20 bg-[var(--accent-interaction)]/5 px-5 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--accent-interaction)]">
                 <span className="inline-flex items-center gap-2">
-                  <span className="flex h-2 w-2 rounded-full bg-[var(--accent-cyan)] animate-pulse" />
+                  <span className="flex h-2 w-2 rounded-full bg-[var(--accent-interaction)]" />
                   Admin Mode Active
                 </span>
               </div>
@@ -711,26 +706,24 @@ export default function QueuePage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-r from-[var(--surface-elevated)] to-[var(--surface-card)] px-5 py-4"
+              className="hidden sm:flex flex-wrap items-center gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-5 py-4"
             >
               <button
                 onClick={handleClearQueue}
                 disabled={clearLoading}
-                className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-6 py-2.5 text-xs font-bold uppercase tracking-[0.3em] text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,170,0.5)] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg bg-[var(--accent-error)] px-6 py-2.5 text-xs font-bold uppercase tracking-[0.15em] text-white transition-all hover:bg-[#FF6A6A] active:bg-[#FF3939] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className="relative z-10">
-                  {clearLoading
-                    ? "Clearing..."
-                    : clearConfirm
-                    ? "⚠ Confirm Clear"
-                    : "Clear Queue"}
-                </span>
+                {clearLoading
+                  ? "Clearing..."
+                  : clearConfirm
+                  ? "⚠ Confirm Clear"
+                  : "Clear Queue"}
               </button>
               {clearConfirm && !clearLoading && (
                 <motion.span
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--accent-amber)]"
+                  className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--accent-warning)]"
                 >
                   Click again within 5s to delete all
                 </motion.span>
@@ -745,7 +738,7 @@ export default function QueuePage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-5 py-3 text-xs font-bold uppercase tracking-[0.25em] text-emerald-300"
+              className="rounded-lg border border-[var(--accent-success)]/30 bg-[var(--accent-success)]/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--accent-success)]"
             >
               {actionNotice}
             </motion.p>
@@ -758,7 +751,7 @@ export default function QueuePage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="rounded-2xl border border-[var(--accent-magenta)]/30 bg-[var(--accent-magenta)]/10 px-5 py-3 text-xs font-bold uppercase tracking-[0.25em] text-[var(--accent-magenta)]"
+              className="rounded-lg border border-[var(--accent-error)]/30 bg-[var(--accent-error)]/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--accent-error)]"
             >
               {actionError}
             </motion.p>
@@ -769,7 +762,7 @@ export default function QueuePage() {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-16 text-center text-sm font-semibold uppercase tracking-[0.3em] text-white/60"
+            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-4 py-16 text-center text-sm font-semibold uppercase tracking-[0.15em] text-[var(--text-tertiary)]"
           >
             No submissions yet.
           </motion.p>
@@ -918,31 +911,31 @@ const QueueItem = ({
 
   // Determine highest privilege badge (consolidate hierarchy)
   const topBadge = submission.isChannelOwner ? (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--surface-module)] border border-[var(--border-subtle)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
       <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
         <path d="M8 0l2.469 4.995 5.531.805-4 3.894.944 5.506-4.944-2.598-4.944 2.598.944-5.506-4-3.894 5.531-.805z" />
       </svg>
       Owner
     </span>
   ) : !submission.isChannelOwner && submission.submittedByRole === "admin" ? (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-emerald-500 to-green-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--surface-module)] border border-[var(--border-subtle)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
       <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
         <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
       </svg>
       Admin
     </span>
   ) : submission.isMember === true ? (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-purple-600 to-[var(--accent-magenta)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--surface-module)] border border-[var(--border-subtle)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
       <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
         <path d="M8 12l-3.5 2.1 1-4-3-2.6 4-.3L8 3l1.5 4.2 4 .3-3 2.6 1 4z" />
       </svg>
       Member
       {submission.membershipTier && (
-        <span className="ml-1 text-white/90">{submission.membershipTier}</span>
+        <span className="ml-1 text-[var(--text-primary)]/90">{submission.membershipTier}</span>
       )}
     </span>
   ) : submission.isSubscriber === true ? (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-500 to-[var(--accent-amber)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--surface-module)] border border-[var(--border-subtle)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
       <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
         <path d="M15 8L1 15V1l14 7z" />
       </svg>
@@ -971,12 +964,12 @@ const QueueItem = ({
   }>;
 
   // Dynamic card styling based on playback state
-  const cardClasses = `w-full rounded-2xl border transition-all duration-300 ${
+  const cardClasses = `w-full rounded-xl border transition-all ${
     isPlaying
-      ? "border-[var(--accent-cyan)] bg-[var(--state-playing-bg)] shadow-[0_0_40px_rgba(0,229,255,0.3)] ring-2 ring-[var(--accent-cyan)]/40"
+      ? "border-[var(--accent-interaction)] bg-[var(--state-playing)] ring-1 ring-[var(--accent-interaction)]/50"
       : hasPlayed
-      ? "border-[var(--accent-magenta)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)]"
-      : "border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] hover:border-white/20"
+      ? "border-[var(--border-subtle)] bg-[var(--surface-card)] opacity-75"
+      : "border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-lighter)]"
   }`;
 
   return (
@@ -984,7 +977,7 @@ const QueueItem = ({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.18 }}
       layout
       className={cardClasses}
     >
@@ -993,29 +986,27 @@ const QueueItem = ({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             {/* Position Badge - Larger and more prominent */}
-            <motion.div
-              animate={isPlaying ? { scale: [1, 1.1, 1] } : { scale: 1 }}
-              transition={{ duration: 1, repeat: isPlaying ? Infinity : 0 }}
-              className={`flex h-10 w-10 items-center justify-center rounded-lg font-black text-lg transition-all duration-300 ${
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-lg font-bold text-lg transition-all ${
                 isPlaying
-                  ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_20px_rgba(0,229,255,0.6)]"
+                  ? "bg-[var(--accent-interaction)] text-[var(--text-inverse)]"
                   : hasPlayed
-                  ? "bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)] border border-[var(--accent-magenta)]/40"
-                  : "bg-white/10 text-white/70 border border-white/20"
+                  ? "bg-[var(--surface-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+                  : "bg-[var(--surface-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
               }`}
             >
               {position}
-            </motion.div>
+            </div>
             {/* YouTube Channel Name - Compact inline display */}
             {submission.youtubeChannelTitle && (
-              <span className="text-sm font-semibold text-white/70 flex items-center gap-2">
+              <span className="text-sm font-semibold text-[var(--text-secondary)] flex items-center gap-2">
                 {submission.youtubeChannelAvatarUrl && (
                   <Image
                     src={submission.youtubeChannelAvatarUrl}
                     alt={submission.youtubeChannelTitle}
                     width={24}
                     height={24}
-                    className="h-6 w-6 rounded-full border border-white/20 object-cover"
+                    className="h-6 w-6 rounded-full border border-[var(--border-subtle)] object-cover"
                   />
                 )}
                 {submission.youtubeChannelTitle}
@@ -1023,7 +1014,7 @@ const QueueItem = ({
             )}
             {topBadge}
             {submission.priority && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent-interaction)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
                 <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                   <path d="M2 2h12l-2 6 2 6H2l2-6-2-6z" />
                 </svg>
@@ -1031,7 +1022,7 @@ const QueueItem = ({
               </span>
             )}
             {hasPlayed && !isPlaying && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent-magenta)]/20 border border-[var(--accent-magenta)]/40 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[var(--accent-magenta)]">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--state-played)] border border-[var(--border-subtle)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                 <CHECK_ICON className="h-3.5 w-3.5" />
                 Played
               </span>
@@ -1044,10 +1035,10 @@ const QueueItem = ({
             aria-label={isExpanded ? "Collapse" : "Expand"}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-all duration-300 ${
+            className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-all ${
               isPlaying
-                ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]"
-                : "border-white/20 bg-white/5 text-white/70 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
+                ? "border-[var(--accent-interaction)] bg-[var(--accent-interaction)]/10 text-[var(--accent-interaction)]"
+                : "border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[var(--text-secondary)] hover:border-[var(--border-lighter)] hover:text-[var(--text-primary)]"
             }`}
           >
             <motion.svg
@@ -1056,7 +1047,7 @@ const QueueItem = ({
               fill="currentColor"
               className="h-5 w-5"
               animate={{ rotate: isExpanded ? 180 : 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.18 }}
             >
               <path
                 fillRule="evenodd"
@@ -1076,43 +1067,43 @@ const QueueItem = ({
             className="mt-4 flex flex-col gap-4"
           >
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              <label className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
                 SoundCloud Link:
               </label>
               <input
                 type="url"
                 value={editSoundcloudLink}
                 onChange={(e) => setEditSoundcloudLink(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 focus:bg-black/60"
+                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-module)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] transition-all focus:border-[var(--accent-highlight)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-highlight)]/40"
                 placeholder="https://soundcloud.com/your-track"
               />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              <label className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
                 Instagram (optional):
               </label>
               <input
                 type="text"
                 value={editInstagramHandle}
                 onChange={(e) => setEditInstagramHandle(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 focus:bg-black/60"
+                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-module)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] transition-all focus:border-[var(--accent-highlight)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-highlight)]/40"
                 placeholder="@username or URL"
               />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              <label className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
                 TikTok (optional):
               </label>
               <input
                 type="text"
                 value={editTiktokHandle}
                 onChange={(e) => setEditTiktokHandle(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 focus:bg-black/60"
+                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-module)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] transition-all focus:border-[var(--accent-highlight)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-highlight)]/40"
                 placeholder="@username or URL"
               />
             </div>
             {editError && (
-              <p className="text-xs font-bold text-[var(--accent-magenta)]">{editError}</p>
+              <p className="text-xs font-semibold text-[var(--accent-error)]">{editError}</p>
             )}
             <div className="flex gap-2">
               <motion.button
@@ -1120,7 +1111,7 @@ const QueueItem = ({
                 disabled={editLoading || !editSoundcloudLink.trim()}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="rounded-full bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 px-5 py-2.5 text-xs font-black uppercase tracking-[0.25em] text-black transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,229,255,0.5)] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg bg-[var(--accent-interaction)] px-5 py-2.5 text-xs font-bold uppercase tracking-[0.15em] text-[var(--text-inverse)] transition-all hover:bg-[#FF8555] active:bg-[#FF5A1F] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {editLoading ? "Saving..." : "Save"}
               </motion.button>
@@ -1129,7 +1120,7 @@ const QueueItem = ({
                 disabled={editLoading}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-xs font-black uppercase tracking-[0.25em] text-white/70 transition-all duration-300 hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)] transition-all hover:border-[var(--border-lighter)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Cancel
               </motion.button>
@@ -1143,7 +1134,7 @@ const QueueItem = ({
                 href={submission.soundcloudLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-lg font-bold text-white hover:text-[var(--accent-cyan)] transition-colors duration-200"
+                className="text-lg font-bold text-[var(--text-primary)] hover:text-[var(--accent-interaction)] transition-colors"
               >
                 {trackInfo.display}
               </a>
@@ -1160,7 +1151,7 @@ const QueueItem = ({
                     rel="noopener noreferrer"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10 hover:text-white"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-all hover:border-[var(--border-lighter)] hover:text-[var(--text-primary)]"
                   >
                     {link.icon}
                     <span>{link.display}</span>
@@ -1178,11 +1169,11 @@ const QueueItem = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`mt-4 overflow-hidden rounded-xl border transition-all duration-300 ${
+              transition={{ duration: 0.18 }}
+              className={`mt-4 overflow-hidden rounded-lg border transition-all ${
                 isPlaying
-                  ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
-                  : "border-white/10"
+                  ? "border-[var(--accent-interaction)]"
+                  : "border-[var(--border-subtle)]"
               }`}
             >
               <iframe
@@ -1195,7 +1186,7 @@ const QueueItem = ({
                 ref={iframeRef}
                 src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
                   submission.soundcloudLink
-                )}&color=%2300E5FF&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+                )}&color=%23FF6F3C&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
               ></iframe>
             </motion.div>
           )}
@@ -1209,7 +1200,7 @@ const QueueItem = ({
                 onClick={onStartEdit}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)] transition-all hover:border-[var(--border-lighter)] hover:text-[var(--text-primary)]"
               >
                 <EDIT_ICON className="h-3.5 w-3.5" />
                 Edit
@@ -1222,7 +1213,7 @@ const QueueItem = ({
                   disabled={pendingActionId !== null || index === 0}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)] transition-all hover:border-[var(--border-lighter)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   <ARROW_UP_ICON className="h-3.5 w-3.5" />
                   Up
@@ -1232,7 +1223,7 @@ const QueueItem = ({
                   disabled={pendingActionId !== null || index === total - 1}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)] transition-all hover:border-[var(--border-lighter)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   <ARROW_DOWN_ICON className="h-3.5 w-3.5" />
                   Down
@@ -1242,7 +1233,7 @@ const QueueItem = ({
                   disabled={pendingActionId !== null}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
+                  className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-[var(--accent-error)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-all hover:bg-[#FF6A6A] active:bg-[#FF3939] disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   <TRASH_ICON className="h-3.5 w-3.5" />
                   Remove
