@@ -352,7 +352,7 @@ export default function SubmissionForm() {
               )}
               <span className="text-white/70 normal-case tracking-normal">
                 YouTube Channel:
-                <span className="ml-2 text-white font-semibold uppercase tracking-[0.2em]">
+                <span className="ml-2 text-white font-semibold">
                   {youtubeChannelTitle}
                 </span>
               </span>
