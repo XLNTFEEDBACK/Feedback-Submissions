@@ -1,8 +1,11 @@
 "use client";
 import { motion } from "framer-motion";
+import { useState } from "react";
 import SubmissionForm from "../components/SubmissionForm";
 
 export default function SubmitPage() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
     <div className="min-h-screen w-full bg-[var(--surface-void)] text-white pt-20">
       {/* Header */}
@@ -10,7 +13,9 @@ export default function SubmitPage() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-        className="relative mx-auto flex w-full max-w-2xl flex-col items-center gap-2 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-12 text-center shadow-[0_40px_120px_-40px_rgba(0,229,255,0.4)]"
+        className={`relative mx-auto flex w-full max-w-2xl flex-col items-center gap-2 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-12 text-center shadow-[0_40px_120px_-40px_rgba(0,229,255,0.4)] transition-all duration-300 ${
+          isModalOpen ? "opacity-30 blur-sm" : "opacity-100"
+        }`}
       >
         {/* Accent glow lines */}
         <div className="absolute top-0 left-1/3 w-40 h-1 bg-gradient-to-r from-transparent via-[var(--accent-magenta)] to-transparent opacity-60" />
@@ -26,7 +31,7 @@ export default function SubmitPage() {
 
       {/* Form Container */}
       <main className="mx-auto flex w-full max-w-2xl flex-col items-stretch gap-6 px-4 py-8">
-        <SubmissionForm />
+        <SubmissionForm onModalStateChange={setIsModalOpen} />
       </main>
     </div>
   );

@@ -44,7 +44,7 @@ const getTrackDisplay = (url: string) => {
   };
 };
 
-export default function SubmissionForm() {
+export default function SubmissionForm({ onModalStateChange }: { onModalStateChange?: (isModalOpen: boolean) => void }) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.isAdmin ?? false;
@@ -68,6 +68,15 @@ export default function SubmissionForm() {
   const [existingSoundcloudLink, setExistingSoundcloudLink] = useState<string | null>(null);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+
+  const showModal = status === "unauthenticated";
+
+  // Notify parent when modal state changes
+  useEffect(() => {
+    if (onModalStateChange) {
+      onModalStateChange(showModal || showReplaceModal);
+    }
+  }, [showModal, showReplaceModal, onModalStateChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,8 +206,6 @@ export default function SubmissionForm() {
     }
   }, [status, session?.user]);
 
-  const showModal = status === "unauthenticated";
-
   return (
     <div className="relative min-h-screen w-full text-white">
       {/* Navigation buttons in top right */}
@@ -206,7 +213,9 @@ export default function SubmissionForm() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="fixed top-4 right-4 z-10 flex gap-2"
+        className={`fixed top-4 right-4 z-10 flex gap-2 transition-all duration-300 ${
+          showModal || showReplaceModal ? "opacity-30 blur-sm" : "opacity-100"
+        }`}
       >
         <Link
           href="/queue"
