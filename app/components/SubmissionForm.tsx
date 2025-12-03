@@ -55,7 +55,6 @@ export default function SubmissionForm() {
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [tiktokHandle, setTiktokHandle] = useState("");
-  const [priority, setPriority] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -64,18 +63,11 @@ export default function SubmissionForm() {
     soundcloudLink: string;
     instagramHandle: string;
     tiktokHandle: string;
-    priority: boolean;
   } | null>(null);
   const [, setExistingSubmissionId] = useState<string | null>(null);
   const [existingSoundcloudLink, setExistingSoundcloudLink] = useState<string | null>(null);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isAdmin && priority) {
-      setPriority(false);
-    }
-  }, [isAdmin, priority]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,9 +79,6 @@ export default function SubmissionForm() {
       const payload: Record<string, unknown> = {
         soundcloudLink,
       };
-      if (isAdmin) {
-        payload.priority = priority;
-      }
       if (instagramHandle.trim()) {
         payload.instagramHandle = instagramHandle.trim();
       }
@@ -110,7 +99,6 @@ export default function SubmissionForm() {
         setSoundcloudLink("");
         setInstagramHandle("");
         setTiktokHandle("");
-        setPriority(false);
         setShowReplaceModal(false);
         setPendingSubmission(null);
 
@@ -122,7 +110,6 @@ export default function SubmissionForm() {
           soundcloudLink,
           instagramHandle,
           tiktokHandle,
-          priority,
         });
         setExistingSubmissionId(data.existingSubmissionId);
         setExistingSoundcloudLink(data.existingSoundcloudLink);
@@ -149,9 +136,6 @@ export default function SubmissionForm() {
         soundcloudLink: pendingSubmission.soundcloudLink,
         replaceExisting: true,
       };
-      if (isAdmin) {
-        payload.priority = pendingSubmission.priority;
-      }
       if (pendingSubmission.instagramHandle.trim()) {
         payload.instagramHandle = pendingSubmission.instagramHandle.trim();
       }
@@ -172,7 +156,6 @@ export default function SubmissionForm() {
         setSoundcloudLink("");
         setInstagramHandle("");
         setTiktokHandle("");
-        setPriority(false);
         setShowReplaceModal(false);
         setPendingSubmission(null);
         setExistingSubmissionId(null);
@@ -232,14 +215,16 @@ export default function SubmissionForm() {
           <span className="relative z-10">View Queue</span>
           <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </Link>
-        <button
-          type="button"
-          onClick={() => signOut({ callbackUrl: "/" })}
-          className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-red-500 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(255,0,0,0.3)]"
-        >
-          <span className="relative z-10">Sign Out</span>
-          <span className="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-red-500/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-        </button>
+        {status === "authenticated" && (
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-red-500 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(255,0,0,0.3)]"
+          >
+            <span className="relative z-10">Sign Out</span>
+            <span className="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-red-500/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          </button>
+        )}
       </motion.div>
 
       {/* Loading State */}
@@ -266,7 +251,7 @@ export default function SubmissionForm() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-20 flex items-center justify-center bg-black/90 px-4 backdrop-blur-md"
+            className="fixed inset-0 z-20 flex items-center justify-center px-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -304,7 +289,7 @@ export default function SubmissionForm() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-20 flex items-center justify-center bg-black/90 px-4 backdrop-blur-md"
+            className="fixed inset-0 z-20 flex items-center justify-center px-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -529,20 +514,7 @@ export default function SubmissionForm() {
           </label>
         </div>
 
-        {/* Priority Status */}
-        {isAdmin && (
-          <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 px-5 py-4 cursor-pointer transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-              Priority (Admins Only)
-            </span>
-            <input
-              type="checkbox"
-              checked={priority}
-              onChange={(e) => setPriority(e.target.checked)}
-              className="h-5 w-5 cursor-pointer accent-[var(--accent-cyan)] rounded transition-all"
-            />
-          </label>
-        )}
+
 
         {/* Submit Button */}
         <motion.button
