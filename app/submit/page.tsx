@@ -9,7 +9,7 @@ export default function SubmitPage() {
             Submit Your Track
           </h1>
           <p className="text-sm uppercase tracking-[0.25em] text-white/60">
-            share your sound • join the queue
+            share your song • join the queue
           </p>
         </div>
       </header>

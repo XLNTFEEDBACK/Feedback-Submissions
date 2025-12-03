@@ -3,8 +3,48 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+const getTrackDisplay = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname
+      .split("/")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+    if (segments.length >= 2) {
+      const artist = decodeURIComponent(segments[segments.length - 2]);
+      const track = decodeURIComponent(segments[segments.length - 1]);
+      return {
+        artist,
+        track,
+        display: `${artist} – ${track}`,
+      };
+    }
+
+    if (segments.length === 1) {
+      const track = decodeURIComponent(segments[0]);
+      return {
+        artist: null,
+        track,
+        display: track,
+      };
+    }
+  } catch {
+    // noop
+  }
+
+  return {
+    artist: null,
+    track: null,
+    display: url,
+  };
+};
 
 export default function SubmissionForm() {
+  const router = useRouter();
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.isAdmin ?? false;
   const isChannelOwner = session?.user?.isChannelOwner ?? false;
@@ -20,6 +60,15 @@ export default function SubmissionForm() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState<{
+    soundcloudLink: string;
+    instagramHandle: string;
+    tiktokHandle: string;
+    priority: boolean;
+  } | null>(null);
+  const [existingSubmissionId, setExistingSubmissionId] = useState<string | null>(null);
+  const [existingSoundcloudLink, setExistingSoundcloudLink] = useState<string | null>(null);
 
   const inputClass =
     "w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white placeholder-white/40 transition focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/30";
@@ -68,17 +117,95 @@ export default function SubmissionForm() {
         setInstagramHandle("");
         setTiktokHandle("");
         setPriority(false);
+        setShowReplaceModal(false);
+        setPendingSubmission(null);
 
-        // Redirect to queue page
-        window.location.href = "/queue";
+        // Redirect to queue page after a brief delay to show success message
+        setTimeout(() => {
+          router.push("/queue");
+        }, 500);
+      } else if (data.alreadyExists) {
+        // User already has a submission - show replace modal
+        setPendingSubmission({
+          soundcloudLink,
+          instagramHandle,
+          tiktokHandle,
+          priority,
+        });
+        setExistingSubmissionId(data.existingSubmissionId);
+        setExistingSoundcloudLink(data.existingSoundcloudLink);
+        setShowReplaceModal(true);
+        setLoading(false);
       } else {
         setError(data.error || "Failed to submit track.");
+        setLoading(false);
       }
     } catch {
       setError("Failed to submit track.");
-    } finally {
       setLoading(false);
     }
+  };
+
+  const handleReplaceSubmission = async () => {
+    if (!pendingSubmission) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const payload: Record<string, unknown> = {
+        soundcloudLink: pendingSubmission.soundcloudLink,
+        replaceExisting: true,
+      };
+      if (isAdmin) {
+        payload.priority = pendingSubmission.priority;
+      }
+      if (pendingSubmission.instagramHandle.trim()) {
+        payload.instagramHandle = pendingSubmission.instagramHandle.trim();
+      }
+      if (pendingSubmission.tiktokHandle.trim()) {
+        payload.tiktokHandle = pendingSubmission.tiktokHandle.trim();
+      }
+
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSubmitted(true);
+        setSoundcloudLink("");
+        setInstagramHandle("");
+        setTiktokHandle("");
+        setPriority(false);
+        setShowReplaceModal(false);
+        setPendingSubmission(null);
+        setExistingSubmissionId(null);
+        setExistingSoundcloudLink(null);
+
+        // Redirect to queue page after a brief delay to show success message
+        setTimeout(() => {
+          router.push("/queue");
+        }, 500);
+      } else {
+        setError(data.error || "Failed to replace track.");
+        setLoading(false);
+      }
+    } catch {
+      setError("Failed to replace track.");
+      setLoading(false);
+    }
+  };
+
+  const handleCancelReplace = () => {
+    setShowReplaceModal(false);
+    setPendingSubmission(null);
+    setExistingSubmissionId(null);
+    setExistingSoundcloudLink(null);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -102,6 +229,23 @@ export default function SubmissionForm() {
 
   return (
     <div className="relative min-h-screen w-full bg-transparent text-white">
+      {/* Navigation buttons in top right */}
+      <div className="fixed top-4 right-4 z-10 flex gap-2">
+        <Link
+          href="/queue"
+          className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white backdrop-blur-sm"
+        >
+          View Queue
+        </Link>
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white backdrop-blur-sm"
+        >
+          Sign out
+        </button>
+      </div>
+
       {status === "loading" && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 text-white">
           Loading...
@@ -127,11 +271,58 @@ export default function SubmissionForm() {
         </div>
       )}
 
+      {showReplaceModal && (
+        <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/80 px-4 pt-24">
+          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-gradient-to-br from-[#111018] to-[#09070d] p-8 shadow-2xl">
+            <h2 className="text-2xl font-bold text-white mb-3">
+              Already in Queue
+            </h2>
+            <p className="text-white/60 mb-4 text-sm">
+              You already have a track in the queue:
+            </p>
+            {existingSoundcloudLink && (
+              <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-4">
+                <p className="text-sm font-semibold text-white">
+                  {getTrackDisplay(existingSoundcloudLink).display}
+                </p>
+                <a
+                  href={existingSoundcloudLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-white/60 hover:text-white/80 mt-1 block break-all"
+                >
+                  {existingSoundcloudLink}
+                </a>
+              </div>
+            )}
+            <p className="text-white/60 mb-6 text-sm">
+              Would you like to replace it with your new track?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleReplaceSubmission}
+                disabled={loading}
+                className="flex-1 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white shadow-lg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? "Replacing..." : "Yes, Replace"}
+              </button>
+              <button
+                onClick={handleCancelReplace}
+                disabled={loading}
+                className="flex-1 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <form
         onSubmit={handleSubmit}
         className={`mx-auto w-full max-w-2xl flex flex-col gap-6 rounded-2xl border border-white/5 bg-[#0a0811]/80 p-8 shadow-[0_25px_70px_-30px_rgba(255,0,130,0.4)] backdrop-blur transition ${
-          showModal ? "pointer-events-none opacity-30" : "opacity-100"
+          showModal || showReplaceModal ? "pointer-events-none opacity-30" : "opacity-100"
         }`}
       >
         <div className="flex flex-col gap-3">
@@ -204,13 +395,6 @@ export default function SubmissionForm() {
               </span>
             )}
           </div>
-        <button
-          type="button"
-          onClick={() => signOut({ callbackUrl: "/" })}
-          className="w-fit rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white"
-        >
-          Sign out
-        </button>
         </div>
 
         <label className={labelClass}>

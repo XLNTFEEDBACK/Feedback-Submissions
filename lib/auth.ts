@@ -29,17 +29,35 @@ const targetChannelIdNormalized =
 const assignMembershipFlags = async (token: JWT) => {
   const channelId = token.youtubeChannelId as string | null | undefined;
   if (!channelId) {
+    console.log("[auth] No YouTube channel ID found, skipping membership check");
     token.isMember = false;
     token.membershipTier = null;
     token.membershipLevelId = null;
     return;
   }
 
-  const membership = await getMembershipForChannel(channelId);
-  token.isMember = Boolean(membership);
-  token.membershipTier = membership?.tierName ?? null;
-  token.membershipLevelId = membership?.membershipLevelId ?? null;
-  token.membershipCheckedAt = Date.now();
+  console.log("[auth] Checking membership for channel ID:", channelId);
+  try {
+    const membership = await getMembershipForChannel(channelId);
+    console.log("[auth] Membership check result:", {
+      channelId,
+      found: Boolean(membership),
+      membership: membership ? {
+        channelId: membership.channelId,
+        tierName: membership.tierName,
+        membershipLevelId: membership.membershipLevelId,
+      } : null,
+    });
+    token.isMember = Boolean(membership);
+    token.membershipTier = membership?.tierName ?? null;
+    token.membershipLevelId = membership?.membershipLevelId ?? null;
+    token.membershipCheckedAt = Date.now();
+  } catch (error) {
+    console.error("[auth] Error in assignMembershipFlags:", error);
+    token.isMember = false;
+    token.membershipTier = null;
+    token.membershipLevelId = null;
+  }
 };
 
 const applyAdminFlags = (token: JWT) => {

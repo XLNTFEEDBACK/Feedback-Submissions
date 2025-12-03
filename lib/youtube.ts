@@ -29,6 +29,11 @@ let ownerTokenCache:
 let membershipCache: MembershipCache | undefined;
 let warnedMissingOwnerCredentials = false;
 
+// Clear token cache when refresh token changes (for development)
+if (typeof process !== "undefined" && process.env.YOUTUBE_OWNER_REFRESH_TOKEN) {
+  // Token will be refreshed on next request
+}
+
 const MEMBERSHIP_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const OWNER_TOKEN_EXPIRY_BUFFER_MS = 45 * 1000; // 45 second safety window
 
@@ -43,6 +48,14 @@ const getOwnerCredentials = () => {
       console.warn(
         "[youtube] Missing YOUTUBE_OWNER_* credentials; membership checks are disabled."
       );
+      console.warn(
+        "[youtube] Required environment variables:",
+        {
+          hasClientId: !!clientId,
+          hasClientSecret: !!clientSecret,
+          hasRefreshToken: !!refreshToken,
+        }
+      );
     }
     return null;
   }
@@ -56,18 +69,27 @@ const fetchOwnerAccessToken = async (): Promise<string | null> => {
     return null;
   }
 
+  // Always refresh token to ensure we have latest scopes (cache might be stale)
+  // In production, you might want to keep the cache check
+  const shouldUseCache = false; // Set to true in production after verifying it works
+  
   if (
+    shouldUseCache &&
     ownerTokenCache &&
     ownerTokenCache.expiresAt > Date.now() + OWNER_TOKEN_EXPIRY_BUFFER_MS
   ) {
     return ownerTokenCache.accessToken;
   }
 
+  // YouTube Members API requires these specific scopes
+  const requiredScopes = "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl";
+  
   const params = new URLSearchParams({
     client_id: credentials.clientId,
     client_secret: credentials.clientSecret,
     refresh_token: credentials.refreshToken,
     grant_type: "refresh_token",
+    scope: requiredScopes,
   });
 
   const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
@@ -77,22 +99,37 @@ const fetchOwnerAccessToken = async (): Promise<string | null> => {
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
     console.error(
       "[youtube] Failed to refresh owner access token",
       response.status,
-      await response.text()
+      errorText
     );
+    try {
+      const errorJson = JSON.parse(errorText);
+      console.error("[youtube] Token refresh error details:", errorJson);
+    } catch {
+      // Not JSON, already logged as text
+    }
     return null;
   }
 
   const data: {
     access_token?: string;
     expires_in?: number;
+    scope?: string;
   } = await response.json();
 
   if (!data.access_token) {
     console.error("[youtube] Response missing access_token field.");
     return null;
+  }
+
+  // Log the scopes we got back
+  if (data.scope) {
+    console.log("[youtube] Access token scopes:", data.scope);
+  } else {
+    console.warn("[youtube] No scope information in token response");
   }
 
   const expiresInSeconds = data.expires_in ?? 3600;
@@ -115,6 +152,9 @@ const fetchMembershipPage = async (
     url.searchParams.set("pageToken", pageToken);
   }
 
+  console.log("[youtube] Fetching members from:", url.toString());
+  console.log("[youtube] Using access token (first 20 chars):", ownerAccessToken.substring(0, 20) + "...");
+
   const response = await fetch(url.toString(), {
     headers: {
       Authorization: `Bearer ${ownerAccessToken}`,
@@ -123,11 +163,31 @@ const fetchMembershipPage = async (
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
     console.error(
       "[youtube] Failed to fetch membership page",
       response.status,
-      await response.text()
+      errorText
     );
+    try {
+      const errorJson = JSON.parse(errorText);
+      console.error("[youtube] Membership API error details:", errorJson);
+      if (errorJson.error?.message) {
+        console.error("[youtube] Error message:", errorJson.error.message);
+      }
+      
+      // Provide helpful error message for common issues
+      if (response.status === 403 && errorJson.error?.code === 403) {
+        console.error("\n[youtube] ⚠️  TROUBLESHOOTING MEMBERS API ACCESS:");
+        console.error("[youtube] 1. Ensure YouTube Data API v3 is enabled in Google Cloud Console");
+        console.error("[youtube] 2. Verify the channel has memberships enabled");
+        console.error("[youtube] 3. Check that the OAuth client has access to the Members API");
+        console.error("[youtube] 4. The Members API may require channel verification or Partner Program status");
+        console.error("[youtube] 5. Try testing the API directly in Google Cloud Console API Explorer\n");
+      }
+    } catch {
+      // Not JSON, already logged as text
+    }
     throw new Error("Failed to fetch YouTube memberships");
   }
 
@@ -178,17 +238,21 @@ const fetchMembershipLevels = async (ownerAccessToken: string) => {
 };
 
 const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
+  console.log("[youtube] Starting membership cache hydration...");
   const ownerAccessToken = await fetchOwnerAccessToken();
   if (!ownerAccessToken) {
+    console.error("[youtube] Cannot hydrate cache - no owner access token available. Check YOUTUBE_OWNER_* environment variables.");
     return null;
   }
+  console.log("[youtube] Owner access token obtained, fetching members...");
 
   const membersByChannelId = new Map<string, MembershipInfo>();
   const membershipLevelIds = new Set<string>();
 
   let pageToken: string | undefined;
-  do {
-    const page = await fetchMembershipPage(ownerAccessToken, pageToken);
+  try {
+    do {
+      const page = await fetchMembershipPage(ownerAccessToken, pageToken);
     console.log(
       "[youtube] membership page raw",
       JSON.stringify(page, null, 2)
@@ -212,7 +276,18 @@ const hydrateMembershipCache = async (): Promise<MembershipCache | null> => {
       });
     });
     pageToken = page.nextPageToken;
-  } while (pageToken);
+    } while (pageToken);
+  } catch (error) {
+    // If we can't fetch members, log the error but don't fail completely
+    console.error("[youtube] Failed to hydrate membership cache:", error);
+    console.error("\n[youtube] ⚠️  IMPORTANT: YouTube Members API Access Issue");
+    console.error("[youtube] The Members API may require:");
+    console.error("[youtube] 1. Channel verification/Partner Program status");
+    console.error("[youtube] 2. API access approval from Google");
+    console.error("[youtube] 3. Channel memberships to be enabled");
+    console.error("[youtube] Membership checking will be disabled until this is resolved.\n");
+    return null;
+  }
 
   const levelsById = new Map<string, string>();
   if (membershipLevelIds.size > 0) {
@@ -276,15 +351,33 @@ export const getMembershipForChannel = async (
   channelId: string | null | undefined
 ): Promise<MembershipInfo | null> => {
   if (!channelId) {
+    console.log("[youtube] getMembershipForChannel called with null/undefined channelId");
     return null;
   }
+
+  const normalizedChannelId = channelId.toLowerCase();
+  console.log("[youtube] Looking up membership for channel ID:", normalizedChannelId);
 
   try {
     const cache = await getMembershipCache();
     if (!cache) {
+      console.warn("[youtube] Membership cache is null - check YOUTUBE_OWNER_* credentials");
       return null;
     }
-    return cache.membersByChannelId.get(channelId.toLowerCase()) ?? null;
+
+    console.log("[youtube] Cache contains", cache.membersByChannelId.size, "members");
+    const membership = cache.membersByChannelId.get(normalizedChannelId);
+    
+    if (membership) {
+      console.log("[youtube] Found membership:", membership);
+    } else {
+      console.log("[youtube] No membership found for channel ID:", normalizedChannelId);
+      // Log first few channel IDs in cache for debugging
+      const sampleChannelIds = Array.from(cache.membersByChannelId.keys()).slice(0, 5);
+      console.log("[youtube] Sample channel IDs in cache:", sampleChannelIds);
+    }
+    
+    return membership ?? null;
   } catch (error) {
     console.error(
       "[youtube] Failed to resolve membership for channel",

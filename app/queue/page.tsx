@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, SVGProps } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
+import Link from "next/link";
 import { db } from "../firebase/firebase";
 
 interface Submission {
@@ -15,6 +17,8 @@ interface Submission {
   isMember?: boolean;
   membershipTier?: string | null;
   youtubeChannelId?: string | null;
+  youtubeChannelTitle?: string | null;
+  youtubeChannelAvatarUrl?: string | null;
   submittedByRole?: string;
   isChannelOwner?: boolean;
   isSubscriber?: boolean | null;
@@ -132,8 +136,16 @@ export default function QueuePage() {
   const [clearConfirm, setClearConfirm] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
   const clearConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSoundcloudLink, setEditSoundcloudLink] = useState("");
+  const [editInstagramHandle, setEditInstagramHandle] = useState("");
+  const [editTiktokHandle, setEditTiktokHandle] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const isAdmin = session?.user?.isAdmin ?? false;
+  const userEmail = session?.user?.email?.toLowerCase();
+  const userChannelId = session?.user?.youtubeChannelId?.toLowerCase();
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -422,6 +434,8 @@ export default function QueuePage() {
         isMember: doc.data().isMember,
         membershipTier: doc.data().membershipTier ?? null,
         youtubeChannelId: doc.data().youtubeChannelId ?? null,
+        youtubeChannelTitle: doc.data().youtubeChannelTitle ?? null,
+        youtubeChannelAvatarUrl: doc.data().youtubeChannelAvatarUrl ?? null,
         submittedByRole: doc.data().submittedByRole,
         isChannelOwner: doc.data().isChannelOwner,
         isSubscriber: doc.data().isSubscriber,
@@ -539,26 +553,96 @@ export default function QueuePage() {
     }
   };
 
+  const handleStartEdit = (submission: Submission) => {
+    setEditingId(submission.id);
+    setEditSoundcloudLink(submission.soundcloudLink);
+    setEditInstagramHandle(submission.instagramHandle || "");
+    setEditTiktokHandle(submission.tiktokHandle || "");
+    setEditError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditSoundcloudLink("");
+    setEditInstagramHandle("");
+    setEditTiktokHandle("");
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+
+    setEditLoading(true);
+    setEditError(null);
+
+    try {
+      const response = await fetch(`/api/queue/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          soundcloudLink: editSoundcloudLink,
+          instagramHandle: editInstagramHandle,
+          tiktokHandle: editTiktokHandle,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to update submission");
+      }
+
+      setEditingId(null);
+      setActionNotice("Submission updated successfully.");
+      setTimeout(() => setActionNotice(null), 3000);
+    } catch (error) {
+      console.error("Failed to update submission", error);
+      setEditError(
+        error instanceof Error ? error.message : "Failed to update submission"
+      );
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const isOwnSubmission = (submission: Submission): boolean => {
+    if (isAdmin) return true; // Admins can edit any submission
+    const submissionEmail = submission.email?.toLowerCase();
+    const submissionChannelId = submission.youtubeChannelId?.toLowerCase();
+    return Boolean(
+      (userEmail && userEmail === submissionEmail) ||
+      (userChannelId &&
+        submissionChannelId &&
+        userChannelId === submissionChannelId)
+    );
+  };
+
   return (
     <div className="min-h-screen w-full bg-[#050407] px-4 pb-16 pt-12 text-white">
+      {/* Navigation button in top right */}
+      <div className="fixed top-4 right-4 z-10">
+        <Link
+          href="/submit"
+          className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-pink-500 hover:text-white backdrop-blur-sm"
+        >
+          Submit Track
+        </Link>
+      </div>
+
       {/* Header */}
       <header className="mx-auto mb-10 w-full max-w-5xl rounded-2xl border border-white/5 bg-gradient-to-r from-black via-[#151025] to-black py-10 text-center shadow-[0_40px_120px_-60px_rgba(255,0,130,0.6)]">
         <h1 className="text-4xl font-black uppercase tracking-[0.35em] text-white">
-          The XLNT Queue
+          XLNT Feedback Queue
         </h1>
         <p className="mt-3 text-xs uppercase tracking-[0.35em] text-white/50">
-          monitor • prioritize • elevate
+          penis • balls • cum
         </p>
       </header>
 
       <div className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-4">
-        {isAdmin ? (
+        {isAdmin && (
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.25em] text-white/70">
             <span>Admin Controls Enabled</span>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.25em] text-white/50">
-            Sign in with an admin account to manage the queue.
           </div>
         )}
 
@@ -622,6 +706,19 @@ export default function QueuePage() {
                   onToggleExpand={handleToggleExpand}
                   onPlay={handlePlay}
                   widgetReady={widgetReady}
+                  isOwnSubmission={isOwnSubmission(sub)}
+                  isEditing={editingId === sub.id}
+                  onStartEdit={() => handleStartEdit(sub)}
+                  onCancelEdit={handleCancelEdit}
+                  onSaveEdit={handleSaveEdit}
+                  editSoundcloudLink={editSoundcloudLink}
+                  editInstagramHandle={editInstagramHandle}
+                  editTiktokHandle={editTiktokHandle}
+                  setEditSoundcloudLink={setEditSoundcloudLink}
+                  setEditInstagramHandle={setEditInstagramHandle}
+                  setEditTiktokHandle={setEditTiktokHandle}
+                  editLoading={editLoading}
+                  editError={editError}
                 />
               );
             })}
@@ -646,6 +743,19 @@ const QueueItem = ({
   onToggleExpand,
   onPlay,
   widgetReady,
+  isOwnSubmission,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  editSoundcloudLink,
+  editInstagramHandle,
+  editTiktokHandle,
+  setEditSoundcloudLink,
+  setEditInstagramHandle,
+  setEditTiktokHandle,
+  editLoading,
+  editError,
 }: {
   submission: Submission;
   index: number;
@@ -660,6 +770,19 @@ const QueueItem = ({
   onToggleExpand: (id: string, isExpanded: boolean) => void;
   onPlay: (id: string) => void;
   widgetReady: boolean;
+  isOwnSubmission: boolean;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  editSoundcloudLink: string;
+  editInstagramHandle: string;
+  editTiktokHandle: string;
+  setEditSoundcloudLink: (value: string) => void;
+  setEditInstagramHandle: (value: string) => void;
+  setEditTiktokHandle: (value: string) => void;
+  editLoading: boolean;
+  editError: string | null;
 }) => {
   const position = index + 1;
   const trackInfo = getTrackDisplay(submission.soundcloudLink);
@@ -673,12 +796,30 @@ const QueueItem = ({
     if (!iframe || !window.SC?.Widget) {
       return;
     }
-    const widget = window.SC.Widget(iframe);
-    const handlePlayEvent = () => onPlay(submission.id);
-    widget.bind("play", handlePlayEvent);
-    return () => {
-      widget.unbind("play", handlePlayEvent);
-    };
+    
+    try {
+      const widget = window.SC.Widget(iframe);
+      if (!widget) {
+        return;
+      }
+      const handlePlayEvent = () => onPlay(submission.id);
+      widget.bind("play", handlePlayEvent);
+      return () => {
+        try {
+          // Check if iframe is still in the DOM before cleanup
+          if (iframe && iframe.isConnected && window.SC?.Widget) {
+            const cleanupWidget = window.SC.Widget(iframe);
+            if (cleanupWidget) {
+              cleanupWidget.unbind("play", handlePlayEvent);
+            }
+          }
+        } catch (error) {
+          // Ignore cleanup errors - iframe may have been unmounted
+        }
+      };
+    } catch (error) {
+      console.warn("Error initializing SoundCloud widget:", error);
+    }
   }, [isExpanded, onPlay, submission.id, widgetReady]);
 
   const badges = [
@@ -839,34 +980,112 @@ const QueueItem = ({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-col gap-1 text-sm text-gray-300">
-        {!isExpanded && (
-          <a
-            href={submission.soundcloudLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-white text-base font-semibold hover:underline"
-          >
-            {trackInfo.display}
-          </a>
-        )}
-        {socialLinks.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {socialLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-full border border-gray-700 bg-gray-800/60 px-2 py-0.5 text-[11px] font-medium text-gray-200 transition hover:bg-gray-700"
-              >
-                {link.icon}
-                <span className="text-gray-300">{link.display}</span>
-              </a>
-            ))}
+      {isEditing ? (
+        <div className="mt-3 flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+              SoundCloud Link:
+            </label>
+            <input
+              type="url"
+              value={editSoundcloudLink}
+              onChange={(e) => setEditSoundcloudLink(e.target.value)}
+              className="w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white placeholder-white/40 transition focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/30"
+              placeholder="https://soundcloud.com/your-track"
+            />
           </div>
-        )}
-      </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+              Instagram Handle (optional):
+            </label>
+            <input
+              type="text"
+              value={editInstagramHandle}
+              onChange={(e) => setEditInstagramHandle(e.target.value)}
+              className="w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white placeholder-white/40 transition focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/30"
+              placeholder="@username or full URL"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+              TikTok Handle (optional):
+            </label>
+            <input
+              type="text"
+              value={editTiktokHandle}
+              onChange={(e) => setEditTiktokHandle(e.target.value)}
+              className="w-full rounded-md border border-white/10 bg-black/60 px-3 py-2 text-sm text-white placeholder-white/40 transition focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/30"
+              placeholder="@username or full URL"
+            />
+          </div>
+          {editError && (
+            <p className="text-xs font-semibold text-pink-400">{editError}</p>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onSaveEdit}
+              disabled={editLoading || !editSoundcloudLink.trim()}
+              className="rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {editLoading ? "Saving..." : "Save"}
+            </button>
+            <button
+              onClick={onCancelEdit}
+              disabled={editLoading}
+              className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-col gap-1 text-sm text-gray-300">
+          {(submission.youtubeChannelTitle || submission.youtubeChannelAvatarUrl) && (
+            <div className="flex items-center gap-2 mb-2">
+              {submission.youtubeChannelAvatarUrl && (
+                <Image
+                  src={submission.youtubeChannelAvatarUrl}
+                  alt={submission.youtubeChannelTitle || "YouTube channel"}
+                  width={24}
+                  height={24}
+                  className="h-6 w-6 rounded-full border border-white/20 object-cover"
+                />
+              )}
+              {submission.youtubeChannelTitle && (
+                <span className="text-xs text-white/70">
+                  {submission.youtubeChannelTitle}
+                </span>
+              )}
+            </div>
+          )}
+          {!isExpanded && (
+            <a
+              href={submission.soundcloudLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white text-base font-semibold hover:underline"
+            >
+              {trackInfo.display}
+            </a>
+          )}
+          {socialLinks.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {socialLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-gray-700 bg-gray-800/60 px-2 py-0.5 text-[11px] font-medium text-gray-200 transition hover:bg-gray-700"
+                >
+                  {link.icon}
+                  <span className="text-gray-300">{link.display}</span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {isExpanded && (
         <div className="mt-2 overflow-hidden rounded-xl border border-white/10">
@@ -885,31 +1104,43 @@ const QueueItem = ({
         </div>
       )}
 
-      {isAdmin && (
+      {!isEditing && (
         <div className="mt-3 flex flex-wrap gap-3">
-          <button
-            onClick={() => onMove(submission.id, "up")}
-            disabled={pendingActionId !== null || index === 0}
-            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Move Up
-          </button>
-          <button
-            onClick={() => onMove(submission.id, "down")}
-            disabled={
-              pendingActionId !== null || index === total - 1
-            }
-            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Move Down
-          </button>
-          <button
-            onClick={() => onRemove(submission.id)}
-            disabled={pendingActionId !== null}
-            className="rounded-full bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Remove
-          </button>
+          {isOwnSubmission && (
+            <button
+              onClick={onStartEdit}
+              className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white"
+            >
+              Edit
+            </button>
+          )}
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => onMove(submission.id, "up")}
+                disabled={pendingActionId !== null || index === 0}
+                className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Move Up
+              </button>
+              <button
+                onClick={() => onMove(submission.id, "down")}
+                disabled={
+                  pendingActionId !== null || index === total - 1
+                }
+                className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Move Down
+              </button>
+              <button
+                onClick={() => onRemove(submission.id)}
+                disabled={pendingActionId !== null}
+                className="rounded-full bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Remove
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
