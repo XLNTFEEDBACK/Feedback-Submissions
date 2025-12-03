@@ -2,7 +2,6 @@ import { NextAuthOptions, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import {
-  getMembershipForChannel,
   getUserChannelProfile,
   isUserSubscribedToChannel,
 } from "@/lib/youtube";
@@ -19,46 +18,11 @@ const adminChannelIdsRaw =
 
 const adminChannelIds = adminChannelIdsRaw.map((id) => id.toLowerCase());
 
-const MEMBERSHIP_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const SUBSCRIPTION_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const targetChannelIdRaw =
   process.env.YOUTUBE_TARGET_CHANNEL_ID?.trim() ?? null;
 const targetChannelIdNormalized =
   targetChannelIdRaw?.toLowerCase() ?? null;
-
-const assignMembershipFlags = async (token: JWT) => {
-  const channelId = token.youtubeChannelId as string | null | undefined;
-  if (!channelId) {
-    console.log("[auth] No YouTube channel ID found, skipping membership check");
-    token.isMember = false;
-    token.membershipTier = null;
-    token.membershipLevelId = null;
-    return;
-  }
-
-  console.log("[auth] Checking membership for channel ID:", channelId);
-  try {
-    const membership = await getMembershipForChannel(channelId);
-    console.log("[auth] Membership check result:", {
-      channelId,
-      found: Boolean(membership),
-      membership: membership ? {
-        channelId: membership.channelId,
-        tierName: membership.tierName,
-        membershipLevelId: membership.membershipLevelId,
-      } : null,
-    });
-    token.isMember = Boolean(membership);
-    token.membershipTier = membership?.tierName ?? null;
-    token.membershipLevelId = membership?.membershipLevelId ?? null;
-    token.membershipCheckedAt = Date.now();
-  } catch (error) {
-    console.error("[auth] Error in assignMembershipFlags:", error);
-    token.isMember = false;
-    token.membershipTier = null;
-    token.membershipLevelId = null;
-  }
-};
 
 const applyAdminFlags = (token: JWT) => {
   const normalizedEmail =
@@ -90,8 +54,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope:
-            "openid email profile https://www.googleapis.com/auth/youtube.readonly",
+          scope: "openid email profile https://www.googleapis.com/auth/youtube.readonly",
         },
       },
     }),
@@ -157,38 +120,11 @@ export const authOptions: NextAuthOptions = {
         );
       }
 
-      const shouldRefreshMembership =
-        token.youtubeChannelId &&
-        (!token.membershipCheckedAt ||
-          Date.now() - (token.membershipCheckedAt as number) >
-            MEMBERSHIP_REFRESH_INTERVAL_MS);
-
       const shouldRefreshSubscription =
         targetChannelIdNormalized &&
         (!token.subscriptionCheckedAt ||
           Date.now() - (token.subscriptionCheckedAt as number) >
             SUBSCRIPTION_REFRESH_INTERVAL_MS);
-
-      if (account?.access_token || shouldRefreshMembership) {
-        try {
-          await assignMembershipFlags(token);
-          console.log(
-            "[auth] membership result",
-            JSON.stringify(
-              {
-                channelId: token.youtubeChannelId,
-                isMember: token.isMember,
-                tier: token.membershipTier,
-                membershipLevelId: token.membershipLevelId,
-              },
-              null,
-              2
-            )
-          );
-        } catch (error) {
-          console.error("[auth] Failed to resolve membership status", error);
-        }
-      }
 
       if (
         shouldRefreshSubscription &&
@@ -209,11 +145,8 @@ export const authOptions: NextAuthOptions = {
         role?: "owner" | "admin" | "user";
         isAdmin?: boolean;
         isChannelOwner?: boolean;
-        isMember?: boolean;
         isSubscriber?: boolean | null;
-        membershipTier?: string | null;
         youtubeChannelId?: string | null;
-        membershipLevelId?: string | null;
         youtubeChannelTitle?: string | null;
         youtubeChannelAvatarUrl?: string | null;
       };
@@ -227,11 +160,8 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role ?? "user";
         session.user.isAdmin = token.isAdmin ?? false;
         session.user.isChannelOwner = token.isChannelOwner ?? false;
-        session.user.isMember = token.isMember ?? false;
         session.user.isSubscriber =
           token.isSubscriber ?? null;
-        session.user.membershipTier = token.membershipTier ?? null;
-        session.user.membershipLevelId = token.membershipLevelId ?? null;
         session.user.youtubeChannelId = token.youtubeChannelId ?? null;
         session.user.youtubeChannelTitle =
           token.youtubeChannelTitle ?? null;

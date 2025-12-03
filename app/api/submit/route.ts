@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing SoundCloud link." });
     }
 
-    const userEmail = session.user?.email?.toLowerCase();
     const userChannelId = session.user?.youtubeChannelId?.toLowerCase();
 
     // Check if user already has a submission in the queue
@@ -74,13 +73,11 @@ export async function POST(req: NextRequest) {
 
     const isAdmin = session.user?.isAdmin ?? false;
     const isChannelOwner = session.user?.isChannelOwner ?? false;
-    const isMember = session.user?.isMember ?? false;
     const isSubscriber = session.user?.isSubscriber ?? null;
-    const membershipTier = session.user?.membershipTier ?? null;
 
     const requestedPriority = Boolean(priority);
     const derivedPriority =
-      isMember || isChannelOwner || (isAdmin && requestedPriority);
+      isChannelOwner || (isAdmin && requestedPriority);
 
     const now = Date.now();
     const orderBaseline = derivedPriority ? now - 1_000_000_000 : now;
@@ -97,8 +94,6 @@ export async function POST(req: NextRequest) {
       priority: derivedPriority,
       timestamp: new Date(),
       order: orderBaseline,
-      isMember,
-      membershipTier,
       isSubscriber,
       isChannelOwner,
       youtubeChannelId: session.user?.youtubeChannelId ?? null,

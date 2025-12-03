@@ -49,9 +49,7 @@ export default function SubmissionForm() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.isAdmin ?? false;
   const isChannelOwner = session?.user?.isChannelOwner ?? false;
-  const isMember = session?.user?.isMember ?? false;
   const subscriberStatus = session?.user?.isSubscriber;
-  const membershipTier = session?.user?.membershipTier ?? null;
   const youtubeChannelTitle = session?.user?.youtubeChannelTitle ?? null;
   const youtubeChannelAvatar = session?.user?.youtubeChannelAvatarUrl ?? null;
   const [soundcloudLink, setSoundcloudLink] = useState("");
@@ -68,7 +66,7 @@ export default function SubmissionForm() {
     tiktokHandle: string;
     priority: boolean;
   } | null>(null);
-  const [existingSubmissionId, setExistingSubmissionId] = useState<string | null>(null);
+  const [, setExistingSubmissionId] = useState<string | null>(null);
   const [existingSoundcloudLink, setExistingSoundcloudLink] = useState<string | null>(null);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -209,8 +207,6 @@ export default function SubmissionForm() {
           channelId: session.user.youtubeChannelId ?? null,
           title: session.user.youtubeChannelTitle ?? null,
           avatar: session.user.youtubeChannelAvatarUrl ?? null,
-          isMember: session.user.isMember ?? null,
-          membershipTier: session.user.membershipTier ?? null,
           isSubscriber: session.user.isSubscriber ?? null,
           role: session.user.role ?? null,
         }
@@ -430,14 +426,7 @@ export default function SubmissionForm() {
                 Admin
               </span>
             )}
-            {isMember && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-purple-600 to-[var(--accent-magenta)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                  <path d="M8 12l-3.5 2.1 1-4-3-2.6 4-.3L8 3l1.5 4.2 4 .3-3 2.6 1 4z" />
-                </svg>
-                Member{membershipTier ? ` ${membershipTier}` : ""}
-              </span>
-            )}
+
             {subscriberStatus === true && (
               <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-500 to-[var(--accent-amber)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
                 <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
@@ -540,8 +529,8 @@ export default function SubmissionForm() {
           </label>
         </div>
 
-        {/* Priority / Member Status */}
-        {isAdmin ? (
+        {/* Priority Status */}
+        {isAdmin && (
           <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 px-5 py-4 cursor-pointer transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10">
             <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
               Priority (Admins Only)
@@ -553,21 +542,6 @@ export default function SubmissionForm() {
               className="h-5 w-5 cursor-pointer accent-[var(--accent-cyan)] rounded transition-all"
             />
           </label>
-        ) : isMember ? (
-          <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-5 py-4">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-purple-200 flex items-center gap-2">
-              <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-                <path d="M8 12l-3.5 2.1 1-4-3-2.6 4-.3L8 3l1.5 4.2 4 .3-3 2.6 1 4z" />
-              </svg>
-              You&apos;re a YouTube member! Your submission jumps the queue automatically.
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-white/10 bg-white/5 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
-              Become a YouTube member of XLNTSOUND to get priority placement.
-            </p>
-          </div>
         )}
 
         {/* Submit Button */}

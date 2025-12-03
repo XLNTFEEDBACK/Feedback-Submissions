@@ -15,8 +15,6 @@ interface Submission {
   priority?: boolean;
   order?: number;
   timestamp?: { toMillis?: () => number } | null;
-  isMember?: boolean;
-  membershipTier?: string | null;
   youtubeChannelId?: string | null;
   youtubeChannelTitle?: string | null;
   youtubeChannelAvatarUrl?: string | null;
@@ -206,27 +204,6 @@ export default function QueuePage() {
   }, []);
 
   const sortedSubmissions = useMemo(() => {
-    const membershipTierRank = (submission: Submission) => {
-      if (!submission.isMember) {
-        return Number.MAX_SAFE_INTEGER;
-      }
-
-      const tierId = submission.membershipTier ?? "";
-      const numericMatch = tierId.match(/\d+/);
-      if (numericMatch) {
-        const numericValue = parseInt(numericMatch[0], 10);
-        if (!Number.isNaN(numericValue)) {
-          return -numericValue;
-        }
-      }
-
-      if (tierId) {
-        return -1;
-      }
-
-      return Number.MAX_SAFE_INTEGER - 1;
-    };
-
     const subscriptionRank = (submission: Submission) => {
       if (submission.isSubscriber === true) return 0;
       if (submission.isSubscriber === false) return 1;
@@ -246,7 +223,6 @@ export default function QueuePage() {
       .sort((a, b) => {
         const comparisons = [
           (a.isChannelOwner ? 0 : 1) - (b.isChannelOwner ? 0 : 1),
-          membershipTierRank(a) - membershipTierRank(b),
           subscriptionRank(a) - subscriptionRank(b),
           priorityRank(a) - priorityRank(b),
           orderRank(a) - orderRank(b),
@@ -463,8 +439,6 @@ export default function QueuePage() {
         priority: doc.data().priority,
         order: doc.data().order,
         timestamp: doc.data().timestamp ?? null,
-        isMember: doc.data().isMember,
-        membershipTier: doc.data().membershipTier ?? null,
         youtubeChannelId: doc.data().youtubeChannelId ?? null,
         youtubeChannelTitle: doc.data().youtubeChannelTitle ?? null,
         youtubeChannelAvatarUrl: doc.data().youtubeChannelAvatarUrl ?? null,
@@ -930,16 +904,6 @@ const QueueItem = ({
         <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
       </svg>
       Admin
-    </span>
-  ) : submission.isMember === true ? (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-purple-600 to-[var(--accent-magenta)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
-      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
-        <path d="M8 12l-3.5 2.1 1-4-3-2.6 4-.3L8 3l1.5 4.2 4 .3-3 2.6 1 4z" />
-      </svg>
-      Member
-      {submission.membershipTier && (
-        <span className="ml-1 text-white/90">{submission.membershipTier}</span>
-      )}
     </span>
   ) : submission.isSubscriber === true ? (
     <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-500 to-[var(--accent-amber)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
