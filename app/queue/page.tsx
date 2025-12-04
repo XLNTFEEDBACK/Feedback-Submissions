@@ -99,6 +99,16 @@ const isPrivateTrack = (url: string): boolean => {
   }
 };
 
+// Detect if a URL is a shortened SoundCloud link
+const isShortenedLink = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'on.soundcloud.com';
+  } catch {
+    return false;
+  }
+};
+
 const buildSocialLink = (
   handle: string | null | undefined,
   platform: "instagram" | "tiktok"
@@ -1172,13 +1182,48 @@ const QueueItem = ({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const wasPlayingRef = useRef(false);
-  const isPrivate = isPrivateTrack(submission.soundcloudLink);
+
+  // State for checking shortened links
+  const [isCheckingPrivate, setIsCheckingPrivate] = useState(false);
+  const [checkedPrivateStatus, setCheckedPrivateStatus] = useState<boolean | null>(null);
+
+  // Determine if track is private
+  const isShortened = isShortenedLink(submission.soundcloudLink);
+  const isPrivate = isShortened
+    ? (checkedPrivateStatus ?? false) // Use checked status for shortened links
+    : isPrivateTrack(submission.soundcloudLink); // Direct check for full URLs
 
   // Volume control state
   const [volume, setVolume] = useState<number>(70); // Default 70%
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [lastVolume, setLastVolume] = useState<number>(70); // For mute toggle
   const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check if shortened link is private
+  useEffect(() => {
+    if (!isShortened || checkedPrivateStatus !== null) return;
+
+    const checkPrivateStatus = async () => {
+      setIsCheckingPrivate(true);
+      try {
+        const response = await fetch('/api/soundcloud/check-private', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: submission.soundcloudLink }),
+        });
+
+        const data = await response.json();
+        setCheckedPrivateStatus(data.isPrivate ?? false);
+      } catch (error) {
+        console.error('Failed to check private status:', error);
+        setCheckedPrivateStatus(false); // Default to public if check fails
+      } finally {
+        setIsCheckingPrivate(false);
+      }
+    };
+
+    checkPrivateStatus();
+  }, [isShortened, submission.soundcloudLink, checkedPrivateStatus]);
 
   // Load saved volume from localStorage on mount
   useEffect(() => {
@@ -1698,9 +1743,46 @@ const QueueItem = ({
         {!isEditing && (
           <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center">
-              {/* Volume Controls - Compact, bottom left (only for non-private tracks) */}
+              {isOwnSubmission && (
+                <motion.button
+                  onClick={onStartEdit}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
+                >
+                  <EDIT_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span className="hidden xs:inline">Edit</span>
+                </motion.button>
+              )}
+              {isAdmin && (
+                <>
+                  <motion.button
+                    onClick={() => onMove(submission.id, "up")}
+                    disabled={pendingActionId !== null || index === 0}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ARROW_UP_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <span className="hidden xs:inline">Up</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={() => onMove(submission.id, "down")}
+                    disabled={pendingActionId !== null || index === total - 1}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ARROW_DOWN_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <span className="hidden xs:inline">Down</span>
+                  </motion.button>
+                </>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+              {/* Volume Controls - Bottom right (only for non-private tracks) */}
               {isExpanded && !isPrivate && (
-                <div className="flex items-center gap-1.5 mr-2">
+                <div className="flex items-center gap-1.5">
                   {/* Mute Button */}
                   <motion.button
                     onClick={handleMuteToggle}
@@ -1770,73 +1852,38 @@ const QueueItem = ({
                       }}
                     />
                     {/* Volume Percentage Tooltip */}
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-[9px] font-bold text-[var(--accent-cyan)] pointer-events-none whitespace-nowrap">
+                    <div className="absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-[9px] font-bold text-[var(--accent-cyan)] pointer-events-none whitespace-nowrap bg-black/80 px-2 py-1 rounded">
                       {volume}%
                     </div>
                   </div>
                 </div>
               )}
 
-              {isOwnSubmission && (
-                <motion.button
-                  onClick={onStartEdit}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
-                >
-                  <EDIT_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span className="hidden xs:inline">Edit</span>
-                </motion.button>
-              )}
               {isAdmin && (
                 <>
                   <motion.button
-                    onClick={() => onMove(submission.id, "up")}
+                    onClick={() => onMoveToTop(submission.id)}
                     disabled={pendingActionId !== null || index === 0}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <ARROW_UP_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                    <span className="hidden xs:inline">Up</span>
+                    <span className="hidden xs:inline">Top</span>
                   </motion.button>
                   <motion.button
-                    onClick={() => onMove(submission.id, "down")}
-                    disabled={pendingActionId !== null || index === total - 1}
+                    onClick={() => onRemove(submission.id)}
+                    disabled={pendingActionId !== null}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
                   >
-                    <ARROW_DOWN_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                    <span className="hidden xs:inline">Down</span>
+                    <TRASH_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <span className="hidden xs:inline">Remove</span>
                   </motion.button>
                 </>
               )}
             </div>
-            {isAdmin && (
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                <motion.button
-                  onClick={() => onMoveToTop(submission.id)}
-                  disabled={pendingActionId !== null || index === 0}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ARROW_UP_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span className="hidden xs:inline">Top</span>
-                </motion.button>
-                <motion.button
-                  onClick={() => onRemove(submission.id)}
-                  disabled={pendingActionId !== null}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <TRASH_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span className="hidden xs:inline">Remove</span>
-                </motion.button>
-              </div>
-            )}
           </div>
         )}
       </div>
