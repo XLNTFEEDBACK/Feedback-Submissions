@@ -4,6 +4,7 @@ import { useState } from "react";
 import SubmissionForm from "../components/SubmissionForm";
 import Link from "next/link";
 import type { SVGProps } from "react";
+import Logo from "../components/Logo";
 
 // ============================================================================
 // SOCIAL MEDIA LINKS CONFIGURATION
@@ -106,6 +107,9 @@ export default function SubmitPage() {
 
   return (
     <div className="min-h-screen w-full bg-[var(--surface-void)] text-white pt-20">
+      {/* Logo in top left - aligned with top right buttons */}
+      <Logo />
+      
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, scale: 0.95 }}

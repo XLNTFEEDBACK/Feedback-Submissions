@@ -7,6 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../firebase/firebase";
+import Logo from "../components/Logo";
 
 // ============================================================================
 // SOCIAL MEDIA LINKS CONFIGURATION
@@ -766,6 +767,9 @@ export default function QueuePage() {
 
   return (
     <div className="min-h-screen w-full bg-[var(--surface-void)] px-4 pb-20 pt-20 text-white">
+      {/* Logo in top left - aligned with top right buttons */}
+      <Logo />
+      
       {/* Toast Notifications - Top Right */}
       <AnimatePresence>
         {actionNotice && (
@@ -1083,6 +1087,17 @@ const QueueItem = ({
   const position = index + 1;
   const trackInfo = getTrackDisplay(submission.soundcloudLink);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [iframeKey, setIframeKey] = useState(0);
+  const wasPlayingRef = useRef(false);
+
+  // Reload iframe when track becomes active (switches to visual mode)
+  useEffect(() => {
+    if (isPlaying && !wasPlayingRef.current) {
+      // Track just became active - reload with visual mode and auto_play
+      setIframeKey(prev => prev + 1);
+    }
+    wasPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     if (!isExpanded || !widgetReady) {
@@ -1115,7 +1130,7 @@ const QueueItem = ({
     } catch (error) {
       console.warn("Error initializing SoundCloud widget:", error);
     }
-  }, [isExpanded, onPlay, submission.id, widgetReady]);
+  }, [isExpanded, onPlay, submission.id, widgetReady, iframeKey, isPlaying]);
 
   // Determine highest privilege badge (consolidate hierarchy)
   const topBadge = submission.isChannelOwner ? (
@@ -1171,52 +1186,86 @@ const QueueItem = ({
   }`;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
-      layout
-      layoutId={`submission-${submission.id}`}
-      className={cardClasses}
-    >
-      <div className="p-5">
-        {/* Header Row: Position + Channel Name + Badges + Controls */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Position Badge - Larger and more prominent */}
-            <motion.div
-              animate={isPlaying ? { scale: [1, 1.1, 1] } : { scale: 1 }}
-              transition={{ duration: 1, repeat: isPlaying ? Infinity : 0 }}
-              className={`flex h-10 w-10 items-center justify-center rounded-lg font-black text-lg transition-all duration-300 ${
-                isPlaying
-                  ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_20px_rgba(0,229,255,0.6)]"
-                  : hasPlayed
-                  ? "bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)] border border-[var(--accent-magenta)]/40"
-                  : "bg-white/10 text-white/70 border border-white/20"
-              }`}
-            >
-              {position}
-            </motion.div>
+    <div className="flex items-start gap-4">
+      {/* Desktop Position Badge - Outside Card */}
+      <motion.div
+        animate={isPlaying ? { scale: [1, 1.1, 1] } : { scale: 1 }}
+        transition={{ duration: 1, repeat: isPlaying ? Infinity : 0 }}
+        className={`hidden md:flex h-14 w-14 items-center justify-center rounded-xl font-black text-2xl transition-all duration-300 ${
+          isPlaying
+            ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_30px_rgba(0,229,255,0.8)] ring-2 ring-[var(--accent-cyan)]/60"
+            : hasPlayed
+            ? "bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)] border-2 border-[var(--accent-magenta)]/50 shadow-lg"
+            : "bg-white/10 text-white/70 border-2 border-white/30 shadow-md"
+        }`}
+      >
+        {position}
+      </motion.div>
+
+      {/* Main Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3 }}
+        layout
+        layoutId={`submission-${submission.id}`}
+        className={cardClasses}
+      >
+        <div className="p-5">
+          {/* Header Row: Position + Channel Name + Badges + Controls */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Mobile Position Badge - Inside Card */}
+              <motion.div
+                animate={isPlaying ? { scale: [1, 1.1, 1] } : { scale: 1 }}
+                transition={{ duration: 1, repeat: isPlaying ? Infinity : 0 }}
+                className={`flex md:hidden h-10 w-10 items-center justify-center rounded-lg font-black text-lg transition-all duration-300 ${
+                  isPlaying
+                    ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_20px_rgba(0,229,255,0.6)]"
+                    : hasPlayed
+                    ? "bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)] border border-[var(--accent-magenta)]/40"
+                    : "bg-white/10 text-white/70 border border-white/20"
+                }`}
+              >
+                {position}
+              </motion.div>
             {/* User Name Display - YouTube Channel or Email */}
-            {submission.youtubeChannelTitle ? (
-              <span className="text-sm font-semibold text-white/70 flex items-center gap-2">
-                {submission.youtubeChannelAvatarUrl && (
-                  <Image
-                    src={submission.youtubeChannelAvatarUrl}
-                    alt={submission.youtubeChannelTitle}
-                    width={24}
-                    height={24}
-                    className="h-6 w-6 rounded-full border border-white/20 object-cover"
-                  />
-                )}
-                {submission.youtubeChannelTitle}
-              </span>
-            ) : submission.email ? (
-              <span className="text-sm font-semibold text-white/70">
-                {submission.email}
-              </span>
-            ) : null}
+            <div className="flex items-center gap-2 flex-wrap">
+              {submission.youtubeChannelTitle ? (
+                <span className="text-sm font-semibold text-white/70 flex items-center gap-2">
+                  {submission.youtubeChannelAvatarUrl && (
+                    <Image
+                      src={submission.youtubeChannelAvatarUrl}
+                      alt={submission.youtubeChannelTitle}
+                      width={24}
+                      height={24}
+                      className="h-6 w-6 rounded-full border border-white/20 object-cover"
+                    />
+                  )}
+                  {submission.youtubeChannelTitle}
+                </span>
+              ) : submission.email ? (
+                <span className="text-sm font-semibold text-white/70">
+                  {submission.email}
+                </span>
+              ) : null}
+              {/* Social Links Inline */}
+              {socialLinks.map((link) => (
+                <motion.a
+                  key={link.label}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/5 px-2 py-1 text-xs font-semibold text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10 hover:text-white"
+                >
+                  {link.icon}
+                  <span className="text-[10px]">{link.display}</span>
+                </motion.a>
+              ))}
+            </div>
             {SHOW_QUEUE_BADGES && topBadge}
             {false && submission.priority && (
               <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
@@ -1240,7 +1289,7 @@ const QueueItem = ({
             aria-label={isExpanded ? "Collapse" : "Expand"}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-all duration-300 ${
+            className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all duration-300 ${
               isPlaying
                 ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]"
                 : "border-white/20 bg-white/5 text-white/70 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
@@ -1250,7 +1299,7 @@ const QueueItem = ({
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-5 w-5"
+              className="h-4 w-4"
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.3 }}
             >
@@ -1332,50 +1381,32 @@ const QueueItem = ({
             </div>
           </motion.div>
         ) : (
-          <div className="mt-3 flex flex-col gap-2">
+          <>
             {/* Track Title (when collapsed) */}
             {!isExpanded && (
-              <a
-                href={submission.soundcloudLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-lg font-bold text-white hover:text-[var(--accent-cyan)] transition-colors duration-200"
-              >
-                {trackInfo.display}
-              </a>
-            )}
-
-            {/* Social Links */}
-            {socialLinks.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {socialLinks.map((link) => (
-                  <motion.a
-                    key={link.label}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10 hover:text-white"
-                  >
-                    {link.icon}
-                    <span>{link.display}</span>
-                  </motion.a>
-                ))}
+              <div className="mt-3">
+                <a
+                  href={submission.soundcloudLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-lg font-bold text-white hover:text-[var(--accent-cyan)] transition-colors duration-200"
+                >
+                  {trackInfo.display}
+                </a>
               </div>
             )}
-          </div>
+          </>
         )}
 
         {/* SoundCloud Embed (when expanded) */}
         <motion.div
           initial={false}
-          animate={{ 
+          animate={{
             opacity: isExpanded && !isEditing ? 1 : 0,
             height: isExpanded && !isEditing ? "auto" : 0
           }}
           transition={{ duration: 0.3 }}
-          className={`mt-4 overflow-hidden rounded-xl border transition-all duration-300 ${
+          className={`mt-1 overflow-hidden rounded-xl border transition-all duration-300 ${
             isExpanded && !isEditing
               ? isPlaying
                 ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
@@ -1388,17 +1419,17 @@ const QueueItem = ({
           }}
         >
           <iframe
-            key={`iframe-${submission.id}`}
+            key={`${submission.id}-${iframeKey}`}
             title={`SoundCloud player ${submission.id}`}
             width="100%"
-            height="140"
+            height={isPlaying ? "280" : "100"}
             scrolling="no"
             frameBorder="no"
             allow="autoplay"
             ref={iframeRef}
             src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
               submission.soundcloudLink
-            )}&color=%2300E5FF&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+            )}&color=%2300E5FF&auto_play=${isPlaying ? 'true' : 'false'}&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=false${isPlaying ? '&visual=true' : ''}`}
           ></iframe>
         </motion.div>
 
@@ -1470,5 +1501,6 @@ const QueueItem = ({
         )}
       </div>
     </motion.div>
+    </div>
   );
 };
