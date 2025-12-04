@@ -851,24 +851,26 @@ export default function QueuePage() {
 
       {/* Header */}
       <motion.header
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-        className="mx-auto mb-12 w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] via-[var(--surface-elevated)] to-[var(--surface-card)] py-12 text-center shadow-[0_40px_120px_-60px_rgba(0,229,255,0.4)] relative"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+        className="relative mx-auto mb-8 flex w-full max-w-5xl items-center justify-between overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] px-10 py-6 shadow-[0_20px_60px_-20px_rgba(0,229,255,0.2)]"
       >
-        {/* Accent glow bars */}
-        <div className="absolute top-0 left-1/4 w-32 h-1 bg-gradient-to-r from-transparent via-[var(--accent-cyan)] to-transparent opacity-60" />
-        <div className="absolute bottom-0 right-1/4 w-32 h-1 bg-gradient-to-r from-transparent via-[var(--accent-magenta)] to-transparent opacity-60" />
+        {/* Subtle accent line */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-cyan)]/40 to-transparent" />
 
-        <h1 className="text-5xl font-black uppercase tracking-[0.4em] text-white drop-shadow-[0_2px_10px_rgba(0,229,255,0.3)]">
-          Feedback Queue
-        </h1>
-        <p className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-white/50">
-          Track • Review • Level Up
-        </p>
-        
-        {/* Social Links */}
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+        {/* Left: Title */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-4xl font-black uppercase tracking-[0.15em] text-white">
+            XLNT Feedback Queue
+          </h1>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/40">
+            Track • Review • Level Up
+          </p>
+        </div>
+
+        {/* Right: Social Links */}
+        <div className="flex items-center gap-2.5">
           {SOCIAL_LINKS.tiktok && (
             <TooltipWrapper tooltip="Visit TikTok">
               <motion.a
@@ -877,10 +879,10 @@ export default function QueuePage() {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
-                className="text-white/60 transition-colors duration-300 hover:text-white"
+                className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="TikTok"
               >
-                <TIKTOK_ICON className="h-5 w-5" />
+                <TIKTOK_ICON className="h-4 w-4" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -892,10 +894,10 @@ export default function QueuePage() {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
-                className="text-white/60 transition-colors duration-300 hover:text-white"
+                className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Instagram"
               >
-                <INSTAGRAM_ICON className="h-5 w-5" />
+                <INSTAGRAM_ICON className="h-4 w-4" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -907,10 +909,10 @@ export default function QueuePage() {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
-                className="text-white/60 transition-colors duration-300 hover:text-white"
+                className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="YouTube"
               >
-                <YOUTUBE_ICON className="h-5 w-5" />
+                <YOUTUBE_ICON className="h-4 w-4" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -922,10 +924,10 @@ export default function QueuePage() {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
-                className="text-white/60 transition-colors duration-300 hover:text-white"
+                className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Patreon"
               >
-                <PATREON_ICON className="h-5 w-5" />
+                <PATREON_ICON className="h-4 w-4" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -937,10 +939,10 @@ export default function QueuePage() {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
-                className="text-white/60 transition-colors duration-300 hover:text-white"
+                className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Spotify Podcast"
               >
-                <SPOTIFY_ICON className="h-5 w-5" />
+                <SPOTIFY_ICON className="h-4 w-4" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -952,10 +954,10 @@ export default function QueuePage() {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
-                className="text-white/60 transition-colors duration-300 hover:text-white"
+                className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="XLNT Sound Store"
               >
-                <STORE_ICON className="h-5 w-5" />
+                <STORE_ICON className="h-4 w-4" />
               </motion.a>
             </TooltipWrapper>
           )}

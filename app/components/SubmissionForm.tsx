@@ -248,7 +248,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
   }, [status, session?.user]);
 
   return (
-    <div className="relative min-h-screen w-full text-white">
+    <div className="relative w-full text-white">
       {/* Navigation buttons in top right */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
