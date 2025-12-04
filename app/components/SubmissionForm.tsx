@@ -47,7 +47,13 @@ const getTrackDisplay = (url: string) => {
 const isValidSoundCloudUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url);
-    return parsed.hostname === 'soundcloud.com' && parsed.pathname.length > 1;
+    const validHosts = [
+      'soundcloud.com',
+      'www.soundcloud.com',
+      'm.soundcloud.com',
+      'on.soundcloud.com'
+    ];
+    return validHosts.includes(parsed.hostname) && parsed.pathname.length > 1;
   } catch {
     return false;
   }
@@ -150,6 +156,13 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
     setLoading(true);
     setError("");
     setSubmitted(false);
+
+    // Validate SoundCloud URL
+    if (!isValidSoundCloudUrl(soundcloudLink)) {
+      setError("Please enter a valid SoundCloud link. Only SoundCloud URLs are accepted.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const payload: Record<string, unknown> = {
@@ -572,7 +585,10 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
                 SoundCloud Link:
               </span>
-              {!isValidSoundCloudUrl(soundcloudLink) && (
+              {soundcloudLink && !isValidSoundCloudUrl(soundcloudLink) && (
+                <span className="text-xs text-red-500 font-bold">Invalid SoundCloud URL</span>
+              )}
+              {!soundcloudLink && (
                 <span className="text-xs text-red-500 font-bold">*Required</span>
               )}
             </div>
@@ -586,8 +602,12 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
                 required
                 disabled={showSubmissionsClosedModal}
                 className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
-                  focusedInput === "soundcloud"
+                  soundcloudLink && !isValidSoundCloudUrl(soundcloudLink)
+                    ? "border-red-500/50 ring-2 ring-red-500/30 bg-black/60"
+                    : focusedInput === "soundcloud"
                     ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
+                    : soundcloudLink && isValidSoundCloudUrl(soundcloudLink)
+                    ? "border-green-500/50"
                     : "border-white/10 hover:border-white/20"
                 }`}
                 placeholder="https://soundcloud.com/your-track"
