@@ -53,6 +53,35 @@ const isValidSoundCloudUrl = (url: string): boolean => {
   }
 };
 
+const validateSoundCloudUrl = (url: string): { valid: boolean; isPrivate: boolean; message?: string } => {
+  try {
+    const parsed = new URL(url);
+
+    if (!parsed.hostname.includes('soundcloud.com')) {
+      return { valid: false, isPrivate: false, message: 'Must be a SoundCloud URL' };
+    }
+
+    // Check if it's a private track (contains /s-)
+    const isPrivate = parsed.pathname.includes('/s-');
+
+    if (isPrivate) {
+      // Validate private track format: /artist/track/s-token
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      if (segments.length < 3 || !segments[segments.length - 1].startsWith('s-')) {
+        return {
+          valid: false,
+          isPrivate: true,
+          message: 'Invalid private track format. Use the secret share link from SoundCloud.'
+        };
+      }
+    }
+
+    return { valid: true, isPrivate };
+  } catch {
+    return { valid: false, isPrivate: false, message: 'Invalid URL format' };
+  }
+};
+
 export default function SubmissionForm({ onModalStateChange }: { onModalStateChange?: (isModalOpen: boolean) => void }) {
   const router = useRouter();
   const { data: session, status } = useSession();

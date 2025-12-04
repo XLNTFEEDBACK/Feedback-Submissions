@@ -48,9 +48,21 @@ const getTrackDisplay = (url: string) => {
       .map((segment) => segment.trim())
       .filter(Boolean);
 
-    if (segments.length >= 2) {
-      const artist = decodeURIComponent(segments[segments.length - 2]);
-      const track = decodeURIComponent(segments[segments.length - 1]);
+    // Filter out secret token segment (starts with 's-')
+    const filteredSegments = segments.filter(seg => !seg.startsWith('s-'));
+
+    // Helper to format track names (replace dashes/underscores with spaces, capitalize)
+    const formatTrackName = (name: string): string => {
+      return decodeURIComponent(name)
+        .replace(/[-_]/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+    };
+
+    if (filteredSegments.length >= 2) {
+      const artist = formatTrackName(filteredSegments[filteredSegments.length - 2]);
+      const track = formatTrackName(filteredSegments[filteredSegments.length - 1]);
       return {
         artist,
         track,
@@ -58,8 +70,8 @@ const getTrackDisplay = (url: string) => {
       };
     }
 
-    if (segments.length === 1) {
-      const track = decodeURIComponent(segments[0]);
+    if (filteredSegments.length === 1) {
+      const track = formatTrackName(filteredSegments[0]);
       return {
         artist: null,
         track,
@@ -75,6 +87,16 @@ const getTrackDisplay = (url: string) => {
     track: null,
     display: url,
   };
+};
+
+// Detect if a SoundCloud URL is a private track (contains secret token)
+const isPrivateTrack = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname.includes('/s-');
+  } catch {
+    return false;
+  }
 };
 
 const buildSocialLink = (
@@ -239,6 +261,8 @@ declare global {
       ) => {
         bind: (event: string, listener: () => void) => void;
         unbind: (event: string, listener: () => void) => void;
+        setVolume: (volume: number) => void;
+        getVolume: (callback: (volume: number) => void) => void;
       };
     };
   }
@@ -1148,6 +1172,35 @@ const QueueItem = ({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const wasPlayingRef = useRef(false);
+  const isPrivate = isPrivateTrack(submission.soundcloudLink);
+
+  // Volume control state
+  const [volume, setVolume] = useState<number>(70); // Default 70%
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [lastVolume, setLastVolume] = useState<number>(70); // For mute toggle
+  const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load saved volume from localStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const savedVolume = localStorage.getItem('xlnt-soundcloud-volume');
+    if (savedVolume) {
+      const parsed = parseInt(savedVolume, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+        setVolume(parsed);
+        setLastVolume(parsed);
+      }
+    }
+  }, []);
+
+  // Save volume to localStorage when it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!isMuted) {
+      localStorage.setItem('xlnt-soundcloud-volume', volume.toString());
+    }
+  }, [volume, isMuted]);
 
   // Reload iframe when track becomes active (switches to visual mode)
   useEffect(() => {
@@ -1174,12 +1227,30 @@ const QueueItem = ({
       }
       const handlePlayEvent = () => onPlay(submission.id);
       widget.bind("play", handlePlayEvent);
+
+      // Apply saved volume when widget is ready
+      const handleReadyEvent = () => {
+        const effectiveVolume = isMuted ? 0 : volume;
+        widget.setVolume(effectiveVolume);
+      };
+      widget.bind("ready", handleReadyEvent);
+
       return () => {
         try {
           if (iframe && iframe.isConnected && window.SC?.Widget) {
             const cleanupWidget = window.SC.Widget(iframe);
             if (cleanupWidget) {
-              cleanupWidget.unbind("play", handlePlayEvent);
+              // Suppress cross-origin postMessage warnings in dev mode
+              try {
+                cleanupWidget.unbind("play", handlePlayEvent);
+              } catch (e) {
+                // Ignore cross-origin errors during cleanup
+              }
+              try {
+                cleanupWidget.unbind("ready", handleReadyEvent);
+              } catch (e) {
+                // Ignore cross-origin errors during cleanup
+              }
             }
           }
         } catch (error) {
@@ -1189,7 +1260,7 @@ const QueueItem = ({
     } catch (error) {
       console.warn("Error initializing SoundCloud widget:", error);
     }
-  }, [isExpanded, onPlay, submission.id, widgetReady, iframeKey, isPlaying]);
+  }, [isExpanded, onPlay, submission.id, widgetReady, iframeKey, isPlaying, volume, isMuted]);
 
   // Determine highest privilege badge (consolidate hierarchy)
   const topBadge = submission.isChannelOwner ? (
@@ -1234,6 +1305,68 @@ const QueueItem = ({
     url: string;
     display: string;
   }>;
+
+  // Volume change handlers
+  const handleVolumeChange = useCallback((newVolume: number) => {
+    setVolume(newVolume);
+    setLastVolume(newVolume);
+
+    if (isMuted) {
+      setIsMuted(false);
+    }
+
+    // Debounce widget update
+    if (volumeTimeoutRef.current) {
+      clearTimeout(volumeTimeoutRef.current);
+    }
+
+    volumeTimeoutRef.current = setTimeout(() => {
+      const iframe = iframeRef.current;
+      if (iframe && window.SC?.Widget && widgetReady) {
+        try {
+          const widget = window.SC.Widget(iframe);
+          widget.setVolume(newVolume);
+        } catch (error) {
+          console.warn('Failed to set volume:', error);
+        }
+      }
+    }, 100); // 100ms debounce
+  }, [isMuted, widgetReady]);
+
+  const handleMuteToggle = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !window.SC?.Widget || !widgetReady) return;
+
+    try {
+      const widget = window.SC.Widget(iframe);
+
+      if (isMuted) {
+        // Unmute: restore last volume
+        widget.setVolume(lastVolume);
+        setIsMuted(false);
+      } else {
+        // Mute: set to 0
+        widget.setVolume(0);
+        setIsMuted(true);
+      }
+    } catch (error) {
+      console.warn('Failed to toggle mute:', error);
+    }
+  }, [isMuted, lastVolume, widgetReady]);
+
+  // Cleanup volume timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (volumeTimeoutRef.current) {
+        clearTimeout(volumeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handler for clicking private track link
+  const handlePrivateTrackClick = useCallback(() => {
+    onPlay(submission.id);
+  }, [onPlay, submission.id]);
 
   // Dynamic card styling based on playback state
   const cardClasses = `w-full rounded-2xl border transition-all duration-300 ${
@@ -1355,25 +1488,26 @@ const QueueItem = ({
             )}
           </div>
 
-          {/* Expand/Collapse Button */}
+          {/* Expand/Collapse Button - Discreet */}
           <motion.button
             onClick={() => onToggleExpand(submission.id, isExpanded)}
             aria-label={isExpanded ? "Collapse" : "Expand"}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border transition-all duration-300 flex-shrink-0 ${
+            whileHover={{ scale: 1.1, opacity: 1 }}
+            whileTap={{ scale: 0.9 }}
+            className={`group flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded transition-all duration-300 flex-shrink-0 ${
               isPlaying
-                ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]"
-                : "border-white/20 bg-white/5 text-white/70 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
+                ? "text-[var(--accent-cyan)]/60 hover:text-[var(--accent-cyan)]"
+                : "text-white/30 hover:text-white/70"
             }`}
+            style={{ opacity: 0.5 }}
           >
             <motion.svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+              className="h-3 w-3 sm:h-3.5 sm:w-3.5"
               animate={{ rotate: isExpanded ? 180 : 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
             >
               <path
                 fillRule="evenodd"
@@ -1470,45 +1604,179 @@ const QueueItem = ({
           </>
         )}
 
-        {/* SoundCloud Embed (when expanded) */}
-        <motion.div
-          initial={false}
-          animate={{
-            opacity: isExpanded && !isEditing ? 1 : 0,
-            height: isExpanded && !isEditing ? "auto" : 0
-          }}
-          transition={{ duration: 0.3 }}
-          className={`mt-1 overflow-hidden rounded-xl border transition-all duration-300 ${
-            isExpanded && !isEditing
-              ? isPlaying
-                ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
-                : "border-white/10"
-              : "pointer-events-none"
-          }`}
-          style={{ 
-            visibility: isExpanded && !isEditing ? "visible" : "hidden",
-            height: isExpanded && !isEditing ? "auto" : 0
-          }}
-        >
-          <iframe
-            key={`${submission.id}-${iframeKey}`}
-            title={`SoundCloud player ${submission.id}`}
-            width="100%"
-            height={isPlaying ? "280" : "100"}
-            scrolling="no"
-            frameBorder="no"
-            allow="autoplay"
-            ref={iframeRef}
-            src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
-              submission.soundcloudLink
-            )}&color=%2300E5FF&auto_play=${isPlaying ? 'true' : 'false'}&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=false${isPlaying ? '&visual=true' : ''}`}
-          ></iframe>
-        </motion.div>
+        {/* SoundCloud Embed or Private Link (when expanded) */}
+        {isPrivate ? (
+          // Private Track - Show clickable link instead of iframe
+          <motion.div
+            initial={false}
+            animate={{
+              opacity: isExpanded && !isEditing ? 1 : 0,
+              height: isExpanded && !isEditing ? "auto" : 0
+            }}
+            transition={{ duration: 0.3 }}
+            className={`mt-1 overflow-hidden`}
+            style={{
+              visibility: isExpanded && !isEditing ? "visible" : "hidden",
+              height: isExpanded && !isEditing ? "auto" : 0
+            }}
+          >
+            <motion.a
+              href={submission.soundcloudLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handlePrivateTrackClick}
+              className={`flex items-center justify-center rounded-xl border transition-all duration-300 ${
+                isPlaying
+                  ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+                  : "border-white/20 bg-white/5 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10 hover:shadow-[0_0_15px_rgba(0,229,255,0.2)]"
+              }`}
+              style={{ height: '100px' }}
+            >
+              {/* Track Info with Lock Icon */}
+              <div className="flex flex-col justify-center items-center gap-0.5">
+                <div className="flex items-center gap-2">
+                  {/* Lock Icon */}
+                  <svg viewBox="0 0 16 16" fill="currentColor" className={`h-4 w-4 flex-shrink-0 transition-colors ${isPlaying ? 'text-[var(--accent-cyan)]' : 'text-white/40'}`}>
+                    <path d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zM6 4a2 2 0 1 1 4 0v2H6V4z" />
+                  </svg>
+                  <span className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${isPlaying ? 'text-[var(--accent-cyan)]' : 'text-white/50'}`}>
+                    Private Track
+                  </span>
+                </div>
+                {trackInfo.artist && trackInfo.track && (
+                  <span className="text-sm font-semibold text-white text-center px-4">
+                    {trackInfo.artist} – {trackInfo.track}
+                  </span>
+                )}
+                <span className="text-[10px] font-medium text-white/30 flex items-center justify-center gap-1">
+                  Click to open in SoundCloud
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5">
+                    <path d="M12 4L4 12M12 4v5M12 4H7" />
+                  </svg>
+                </span>
+              </div>
+            </motion.a>
+          </motion.div>
+        ) : (
+          // Public/Unlisted Track - Show iframe embed
+          <motion.div
+            initial={false}
+            animate={{
+              opacity: isExpanded && !isEditing ? 1 : 0,
+              height: isExpanded && !isEditing ? "auto" : 0
+            }}
+            transition={{ duration: 0.3 }}
+            className={`mt-1 overflow-hidden rounded-xl border transition-all duration-300 ${
+              isExpanded && !isEditing
+                ? isPlaying
+                  ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+                  : "border-white/10"
+                : "pointer-events-none"
+            }`}
+            style={{
+              visibility: isExpanded && !isEditing ? "visible" : "hidden",
+              height: isExpanded && !isEditing ? "auto" : 0
+            }}
+          >
+            <iframe
+              key={`${submission.id}-${iframeKey}`}
+              title={`SoundCloud player ${submission.id}`}
+              width="100%"
+              height={isPlaying ? "280" : "100"}
+              scrolling="no"
+              frameBorder="no"
+              allow="autoplay"
+              ref={iframeRef}
+              src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
+                submission.soundcloudLink
+              )}&color=%2300E5FF&auto_play=${isPlaying ? 'true' : 'false'}&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=false${isPlaying ? '&visual=true' : ''}`}
+            ></iframe>
+          </motion.div>
+        )}
 
         {/* Action Buttons */}
         {!isEditing && (
           <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+              {/* Volume Controls - Compact, bottom left (only for non-private tracks) */}
+              {isExpanded && !isPrivate && (
+                <div className="flex items-center gap-1.5 mr-2">
+                  {/* Mute Button */}
+                  <motion.button
+                    onClick={handleMuteToggle}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`flex-shrink-0 flex items-center justify-center rounded-lg border transition-all duration-300 h-7 w-7 ${
+                      isMuted
+                        ? "border-[var(--accent-magenta)]/50 bg-[var(--accent-magenta)]/10 text-[var(--accent-magenta)]"
+                        : "border-white/20 bg-white/5 text-white/70 hover:border-[var(--accent-cyan)] hover:text-[var(--accent-cyan)] hover:bg-white/10"
+                    }`}
+                    aria-label={isMuted ? "Unmute" : "Mute"}
+                  >
+                    {isMuted ? (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                        <path d="M8 2.5L4.5 5H2v6h2.5L8 13.5V2.5z" />
+                        <line x1="10" y1="5" x2="14" y2="11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <line x1="14" y1="5" x2="10" y2="11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                        <path d="M8 2.5L4.5 5H2v6h2.5L8 13.5V2.5z" />
+                        <path d="M10.5 5.5c.8.8 1.3 1.9 1.3 3.2s-.5 2.4-1.3 3.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                      </svg>
+                    )}
+                  </motion.button>
+
+                  {/* Volume Slider - Compact */}
+                  <div className="relative group w-16 sm:w-20 flex items-center h-7">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={volume}
+                      onChange={(e) => handleVolumeChange(parseInt(e.target.value, 10))}
+                      className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer m-0
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-2.5
+                        [&::-webkit-slider-thumb]:h-2.5
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--accent-cyan)]
+                        [&::-webkit-slider-thumb]:cursor-pointer
+                        [&::-webkit-slider-thumb]:transition-all
+                        [&::-webkit-slider-thumb]:duration-200
+                        [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(0,229,255,0.4)]
+                        hover:[&::-webkit-slider-thumb]:w-3
+                        hover:[&::-webkit-slider-thumb]:h-3
+                        hover:[&::-webkit-slider-thumb]:shadow-[0_0_12px_rgba(0,229,255,0.6)]
+                        [&::-moz-range-thumb]:appearance-none
+                        [&::-moz-range-thumb]:w-2.5
+                        [&::-moz-range-thumb]:h-2.5
+                        [&::-moz-range-thumb]:rounded-full
+                        [&::-moz-range-thumb]:bg-[var(--accent-cyan)]
+                        [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:cursor-pointer
+                        [&::-moz-range-thumb]:transition-all
+                        [&::-moz-range-thumb]:duration-200
+                        [&::-moz-range-thumb]:shadow-[0_0_8px_rgba(0,229,255,0.4)]
+                        hover:[&::-moz-range-thumb]:w-3
+                        hover:[&::-moz-range-thumb]:h-3
+                        hover:[&::-moz-range-thumb]:shadow-[0_0_12px_rgba(0,229,255,0.6)]"
+                      style={{
+                        background: `linear-gradient(to right,
+                          var(--accent-cyan) 0%,
+                          var(--accent-cyan) ${volume}%,
+                          rgba(255,255,255,0.1) ${volume}%,
+                          rgba(255,255,255,0.1) 100%)`
+                      }}
+                    />
+                    {/* Volume Percentage Tooltip */}
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-[9px] font-bold text-[var(--accent-cyan)] pointer-events-none whitespace-nowrap">
+                      {volume}%
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {isOwnSubmission && (
                 <motion.button
                   onClick={onStartEdit}
