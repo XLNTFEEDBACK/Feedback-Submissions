@@ -221,6 +221,16 @@ const CHECK_ICON = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const RESET_ICON = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M1.333 8a6.667 6.667 0 1 0 13.334 0 6.667 6.667 0 0 0-13.334 0z" />
+    <path d="M5.333 4L2.667 6.667l2.666 2.666" />
+    <path d="M2.667 6.667h3.333a4 4 0 0 1 4 4v0" />
+    <path d="M10.667 12l2.666-2.667L10.667 6.667" />
+    <path d="M13.333 9.333h-3.333a4 4 0 0 1-4-4v0" />
+  </svg>
+);
+
 declare global {
   interface Window {
     SC?: {
@@ -243,12 +253,14 @@ export default function QueuePage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
+  const [lastPlayedId, setLastPlayedId] = useState<string | null>(null);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set());
   const [widgetReady, setWidgetReady] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [clearConfirmSecond, setClearConfirmSecond] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
   const clearConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prevPlayingIdRef = useRef<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSoundcloudLink, setEditSoundcloudLink] = useState("");
   const [editInstagramHandle, setEditInstagramHandle] = useState("");
@@ -300,6 +312,17 @@ export default function QueuePage() {
       }
     };
   }, []);
+
+  // Track last played submission when currentPlayingId changes
+  useEffect(() => {
+    if (currentPlayingId && prevPlayingIdRef.current !== currentPlayingId) {
+      // Previous playing ID is now the last played
+      if (prevPlayingIdRef.current) {
+        setLastPlayedId(prevPlayingIdRef.current);
+      }
+      prevPlayingIdRef.current = currentPlayingId;
+    }
+  }, [currentPlayingId]);
 
   const sortedSubmissions = useMemo(() => {
     const orderRank = (submission: Submission) =>
@@ -589,6 +612,21 @@ export default function QueuePage() {
     }
   };
 
+  const moveAfter = async (submissionId: string, targetId: string): Promise<void> => {
+    const response = await fetch("/api/queue/move-after", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        submissionId,
+        targetId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to move submission after target");
+    }
+  };
+
   const handleMove = async (submissionId: string, direction: "up" | "down") => {
     if (!isAdmin || pendingActionId) {
       return;
@@ -662,19 +700,35 @@ export default function QueuePage() {
     try {
       setPendingActionId(submissionId);
 
-      await moveToTop(submissionId);
+      // Determine target: use currently playing track, or most recently played, or fall back to absolute top
+      const targetId = currentPlayingId || lastPlayedId;
 
-      // Refresh submissions to get updated order
-      // The Firestore listener will automatically update the list
-      setActionNotice("Submission moved to top of queue.");
+      if (targetId && targetId !== submissionId) {
+        // Move after the target (currently playing or most recently played)
+        await moveAfter(submissionId, targetId);
+        setActionNotice("Submission moved after active track.");
+      } else {
+        // No target - move to absolute top (fallback behavior)
+        await moveToTop(submissionId);
+        setActionNotice("Submission moved to top of queue.");
+      }
+
       setTimeout(() => setActionNotice(null), 3000);
     } catch (error) {
-      console.error("Failed to move submission to top", error);
-      setActionError("Failed to move submission to top. Please try again.");
+      console.error("Failed to move submission", error);
+      setActionError("Failed to move submission. Please try again.");
     } finally {
       setPendingActionId(null);
     }
   };
+
+  const handleResetPlayed = useCallback((submissionId: string) => {
+    setPlayedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(submissionId);
+      return next;
+    });
+  }, []);
 
   const handleRemove = async (submissionId: string) => {
     if (!isAdmin || pendingActionId) {
@@ -814,13 +868,13 @@ export default function QueuePage() {
         </Link>
       </motion.div>
 
-      {/* Clear Queue button in bottom right (admin only) */}
+      {/* Clear Queue button in bottom left (admin only) */}
       {isAdmin && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-10"
+          className="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 z-10"
         >
           <button
             onClick={handleClearQueue}
@@ -1016,6 +1070,7 @@ export default function QueuePage() {
                   setEditTiktokHandle={setEditTiktokHandle}
                   editLoading={editLoading}
                   editError={editError}
+                  onResetPlayed={handleResetPlayed}
                 />
               );
             })}
@@ -1057,6 +1112,7 @@ const QueueItem = ({
   setEditTiktokHandle,
   editLoading,
   editError,
+  onResetPlayed,
 }: {
   submission: Submission;
   index: number;
@@ -1085,6 +1141,7 @@ const QueueItem = ({
   setEditTiktokHandle: (value: string) => void;
   editLoading: boolean;
   editError: string | null;
+  onResetPlayed: (id: string) => void;
 }) => {
   const position = index + 1;
   const trackInfo = getTrackDisplay(submission.soundcloudLink);
@@ -1278,10 +1335,23 @@ const QueueItem = ({
               </span>
             )}
             {hasPlayed && !isPlaying && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent-magenta)]/20 border border-[var(--accent-magenta)]/40 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[var(--accent-magenta)]">
-                <CHECK_ICON className="h-3.5 w-3.5" />
-                Played
-              </span>
+              <div className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent-magenta)]/20 border border-[var(--accent-magenta)]/40 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[var(--accent-magenta)]">
+                  <CHECK_ICON className="h-3.5 w-3.5" />
+                  Played
+                </span>
+                {isAdmin && (
+                  <motion.button
+                    onClick={() => onResetPlayed(submission.id)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center justify-center rounded-md border border-white/20 bg-white/5 p-1.5 text-xs font-bold text-white/70 transition-all duration-300 hover:border-[var(--accent-magenta)]/50 hover:bg-white/10 hover:text-[var(--accent-magenta)]"
+                    aria-label="Reset played state"
+                  >
+                    <RESET_ICON className="h-3.5 w-3.5" />
+                  </motion.button>
+                )}
+              </div>
             )}
           </div>
 
