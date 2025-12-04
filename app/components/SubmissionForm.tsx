@@ -283,13 +283,15 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className={`fixed top-3 right-3 sm:top-4 sm:right-4 z-10 flex gap-1.5 sm:gap-2 transition-all duration-300 ${
-          showModal || showReplaceModal || showSubmissionsClosedModal ? "opacity-30 blur-sm" : "opacity-100"
-        }`}
+        className={`fixed top-3 right-3 sm:top-4 sm:right-4 flex gap-1.5 sm:gap-2 transition-all duration-300 ${
+          showModal || showReplaceModal || (showSubmissionsClosedModal && !isAdmin) ? "opacity-30 blur-sm z-10" : "opacity-100 z-10"
+        } ${showSubmissionsClosedModal && isAdmin ? "z-30" : ""}`}
       >
         <Link
           href="/queue"
-          className="group relative flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+          className={`group relative flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)] ${
+            showSubmissionsClosedModal && !isAdmin ? "pointer-events-none" : ""
+          }`}
         >
           <span className="relative z-10 whitespace-nowrap">View Queue</span>
           <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
