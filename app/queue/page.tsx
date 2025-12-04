@@ -766,7 +766,7 @@ export default function QueuePage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[var(--surface-void)] px-4 pb-20 pt-20 text-white">
+    <div className="min-h-screen w-full bg-[var(--surface-void)] px-3 sm:px-4 pb-16 sm:pb-20 pt-16 sm:pt-20 text-white">
       {/* Logo in top left - aligned with top right buttons */}
       <Logo />
       
@@ -801,13 +801,13 @@ export default function QueuePage() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="fixed top-4 right-4 z-10"
+        className="fixed top-3 right-3 sm:top-4 sm:right-4 z-10"
       >
         <Link
           href="/submit"
-          className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+          className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
         >
-          <span className="relative z-10">
+          <span className="relative z-10 whitespace-nowrap">
             {isAdmin || hasSubmission ? "Submission Form" : "Submit Song"}
           </span>
           <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -820,29 +820,29 @@ export default function QueuePage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="fixed bottom-4 right-4 z-10"
+          className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-10"
         >
           <button
             onClick={handleClearQueue}
             disabled={clearLoading}
-            className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,170,0.5)] disabled:cursor-not-allowed disabled:opacity-40 backdrop-blur-md"
+            className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,170,0.5)] disabled:cursor-not-allowed disabled:opacity-40 backdrop-blur-md"
           >
-            <span className="relative z-10">
+            <span className="relative z-10 whitespace-nowrap">
               {clearLoading
                 ? "Clearing..."
                 : clearConfirmSecond
                 ? "Are you sure?"
                 : clearConfirm
-                ? "⚠ Confirm Clear"
+                ? "⚠ Confirm"
                 : "Clear Queue"}
             </span>
             {(clearConfirm || clearConfirmSecond) && !clearLoading && (
               <motion.span
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold uppercase tracking-[0.25em] text-[var(--accent-amber)]"
+                className="absolute -top-7 sm:-top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] sm:text-xs font-semibold uppercase tracking-[0.2em] sm:tracking-[0.25em] text-[var(--accent-amber)]"
               >
-                Click again within 5s
+                Click within 5s
               </motion.span>
             )}
           </button>
@@ -854,23 +854,23 @@ export default function QueuePage() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        className="relative mx-auto mb-8 flex w-full max-w-5xl items-center justify-between overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] px-10 py-6 shadow-[0_20px_60px_-20px_rgba(0,229,255,0.2)]"
+        className="relative mx-auto mb-6 sm:mb-8 flex w-full max-w-5xl flex-col sm:flex-row sm:items-center sm:justify-between gap-4 overflow-hidden rounded-xl sm:rounded-2xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] px-4 py-4 sm:px-10 sm:py-6 shadow-[0_20px_60px_-20px_rgba(0,229,255,0.2)]"
       >
         {/* Subtle accent line */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-cyan)]/40 to-transparent" />
 
         {/* Left: Title */}
         <div className="flex flex-col gap-1">
-          <h1 className="text-4xl font-black uppercase tracking-[0.15em] text-white">
+          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] text-white leading-tight">
             XLNT Feedback Queue
           </h1>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/40">
+          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/40">
             Track • Review • Level Up
           </p>
         </div>
 
         {/* Right: Social Links */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           {SOCIAL_LINKS.tiktok && (
             <TooltipWrapper tooltip="Visit TikTok">
               <motion.a
@@ -882,7 +882,7 @@ export default function QueuePage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="TikTok"
               >
-                <TIKTOK_ICON className="h-4 w-4" />
+                <TIKTOK_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -897,7 +897,7 @@ export default function QueuePage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Instagram"
               >
-                <INSTAGRAM_ICON className="h-4 w-4" />
+                <INSTAGRAM_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -912,7 +912,7 @@ export default function QueuePage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="YouTube"
               >
-                <YOUTUBE_ICON className="h-4 w-4" />
+                <YOUTUBE_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -927,7 +927,7 @@ export default function QueuePage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Patreon"
               >
-                <PATREON_ICON className="h-4 w-4" />
+                <PATREON_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -942,7 +942,7 @@ export default function QueuePage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Spotify Podcast"
               >
-                <SPOTIFY_ICON className="h-4 w-4" />
+                <SPOTIFY_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -957,14 +957,14 @@ export default function QueuePage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="XLNT Sound Store"
               >
-                <STORE_ICON className="h-4 w-4" />
+                <STORE_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
         </div>
       </motion.header>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-3 sm:gap-4">
 
         {sortedSubmissions.length === 0 ? (
           <motion.p
@@ -1188,12 +1188,12 @@ const QueueItem = ({
   }`;
 
   return (
-    <div className="flex items-start gap-4">
+    <div className="flex items-start gap-2 sm:gap-4">
       {/* Desktop Position Badge - Outside Card */}
       <motion.div
         animate={isPlaying ? { scale: [1, 1.1, 1] } : { scale: 1 }}
         transition={{ duration: 1, repeat: isPlaying ? Infinity : 0 }}
-        className={`hidden md:flex h-14 w-14 items-center justify-center rounded-xl font-black text-2xl transition-all duration-300 ${
+        className={`hidden md:flex h-12 w-12 lg:h-14 lg:w-14 items-center justify-center rounded-xl font-black text-xl lg:text-2xl transition-all duration-300 flex-shrink-0 ${
           isPlaying
             ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_30px_rgba(0,229,255,0.8)] ring-2 ring-[var(--accent-cyan)]/60"
             : hasPlayed
@@ -1214,15 +1214,15 @@ const QueueItem = ({
         layoutId={`submission-${submission.id}`}
         className={cardClasses}
       >
-        <div className="p-5">
+        <div className="p-3 sm:p-5">
           {/* Header Row: Position + Channel Name + Badges + Controls */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* Mobile Position Badge - Inside Card */}
               <motion.div
                 animate={isPlaying ? { scale: [1, 1.1, 1] } : { scale: 1 }}
                 transition={{ duration: 1, repeat: isPlaying ? Infinity : 0 }}
-                className={`flex md:hidden h-10 w-10 items-center justify-center rounded-lg font-black text-lg transition-all duration-300 ${
+                className={`flex md:hidden h-9 w-9 items-center justify-center rounded-lg font-black text-base transition-all duration-300 flex-shrink-0 ${
                   isPlaying
                     ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_20px_rgba(0,229,255,0.6)]"
                     : hasPlayed
@@ -1233,22 +1233,22 @@ const QueueItem = ({
                 {position}
               </motion.div>
             {/* User Name Display - YouTube Channel or Email */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
               {submission.youtubeChannelTitle ? (
-                <span className="text-sm font-semibold text-white/70 flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-semibold text-white/70 flex items-center gap-1.5 sm:gap-2 truncate">
                   {submission.youtubeChannelAvatarUrl && (
                     <Image
                       src={submission.youtubeChannelAvatarUrl}
                       alt={submission.youtubeChannelTitle}
-                      width={24}
-                      height={24}
-                      className="h-6 w-6 rounded-full border border-white/20 object-cover"
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 sm:h-6 sm:w-6 rounded-full border border-white/20 object-cover flex-shrink-0"
                     />
                   )}
-                  {submission.youtubeChannelTitle}
+                  <span className="truncate">{submission.youtubeChannelTitle}</span>
                 </span>
               ) : submission.email ? (
-                <span className="text-sm font-semibold text-white/70">
+                <span className="text-xs sm:text-sm font-semibold text-white/70 truncate">
                   {submission.email}
                 </span>
               ) : null}
@@ -1261,10 +1261,10 @@ const QueueItem = ({
                   rel="noopener noreferrer"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/5 px-2 py-1 text-xs font-semibold text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10 hover:text-white"
+                  className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/5 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-semibold text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10 hover:text-white flex-shrink-0"
                 >
                   {link.icon}
-                  <span className="text-[10px]">{link.display}</span>
+                  <span className="text-[9px] sm:text-[10px]">{link.display}</span>
                 </motion.a>
               ))}
             </div>
@@ -1291,7 +1291,7 @@ const QueueItem = ({
             aria-label={isExpanded ? "Collapse" : "Expand"}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all duration-300 ${
+            className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border transition-all duration-300 flex-shrink-0 ${
               isPlaying
                 ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]"
                 : "border-white/20 bg-white/5 text-white/70 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
@@ -1301,7 +1301,7 @@ const QueueItem = ({
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-4 w-4"
+              className="h-3.5 w-3.5 sm:h-4 sm:w-4"
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.3 }}
             >
@@ -1386,12 +1386,12 @@ const QueueItem = ({
           <>
             {/* Track Title (when collapsed) */}
             {!isExpanded && (
-              <div className="mt-3">
+              <div className="mt-2 sm:mt-3 px-1">
                 <a
                   href={submission.soundcloudLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-lg font-bold text-white hover:text-[var(--accent-cyan)] transition-colors duration-200"
+                  className="text-sm sm:text-base md:text-lg font-bold text-white hover:text-[var(--accent-cyan)] transition-colors duration-200 break-words"
                 >
                   {trackInfo.display}
                 </a>
@@ -1437,17 +1437,17 @@ const QueueItem = ({
 
         {/* Action Buttons */}
         {!isEditing && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-2">
+          <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {isOwnSubmission && (
                 <motion.button
                   onClick={onStartEdit}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
                 >
-                  <EDIT_ICON className="h-3.5 w-3.5" />
-                  Edit
+                  <EDIT_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span className="hidden xs:inline">Edit</span>
                 </motion.button>
               )}
               {isAdmin && (
@@ -1457,45 +1457,45 @@ const QueueItem = ({
                     disabled={pendingActionId !== null || index === 0}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
                   >
-                    <ARROW_UP_ICON className="h-3.5 w-3.5" />
-                    Up
+                    <ARROW_UP_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <span className="hidden xs:inline">Up</span>
                   </motion.button>
                   <motion.button
                     onClick={() => onMove(submission.id, "down")}
                     disabled={pendingActionId !== null || index === total - 1}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
                   >
-                    <ARROW_DOWN_ICON className="h-3.5 w-3.5" />
-                    Down
+                    <ARROW_DOWN_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <span className="hidden xs:inline">Down</span>
                   </motion.button>
                 </>
               )}
             </div>
             {isAdmin && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 <motion.button
                   onClick={() => onMoveToTop(submission.id)}
                   disabled={pendingActionId !== null || index === 0}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  <ARROW_UP_ICON className="h-3.5 w-3.5" />
-                  Top
+                  <ARROW_UP_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span className="hidden xs:inline">Top</span>
                 </motion.button>
                 <motion.button
                   onClick={() => onRemove(submission.id)}
                   disabled={pendingActionId !== null}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  <TRASH_ICON className="h-3.5 w-3.5" />
-                  Remove
+                  <TRASH_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span className="hidden xs:inline">Remove</span>
                 </motion.button>
               </div>
             )}

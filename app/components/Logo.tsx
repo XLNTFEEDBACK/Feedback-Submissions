@@ -13,7 +13,7 @@ export default function Logo() {
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4 }}
-      className="fixed top-4 left-4 z-10"
+      className="fixed top-3 left-3 sm:top-4 sm:left-4 z-10"
     >
       <Link
         href={YOUTUBE_URL}
@@ -28,17 +28,17 @@ export default function Logo() {
           className="relative"
         >
           {/* Logo Image */}
-          <div className="relative h-10 w-auto transition-opacity duration-300 group-hover:opacity-90">
+          <div className="relative h-8 sm:h-10 w-auto transition-opacity duration-300 group-hover:opacity-90">
             <Image
               src={LOGO_IMAGE_PATH}
               alt="XLNT Logo"
-              width={150}
-              height={40}
-              className="h-10 w-auto object-contain"
+              width={120}
+              height={32}
+              className="h-8 sm:h-10 w-auto object-contain"
               priority
             />
           </div>
-          
+
           {/* Hover glow effect */}
           <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/20 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 blur-sm pointer-events-none" />
         </motion.div>

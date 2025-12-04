@@ -254,15 +254,15 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className={`fixed top-4 right-4 z-10 flex gap-2 transition-all duration-300 ${
+        className={`fixed top-3 right-3 sm:top-4 sm:right-4 z-10 flex gap-1.5 sm:gap-2 transition-all duration-300 ${
           showModal || showReplaceModal || showSubmissionsClosedModal ? "opacity-30 blur-sm" : "opacity-100"
         }`}
       >
         <Link
           href="/queue"
-          className="group relative flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+          className="group relative flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
         >
-          <span className="relative z-10">View Queue</span>
+          <span className="relative z-10 whitespace-nowrap">View Queue</span>
           <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </Link>
         {status === "authenticated" && (
@@ -274,26 +274,26 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="group relative flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-red-500 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(255,0,0,0.3)]"
+              className="group relative flex items-center gap-1.5 sm:gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-red-500 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(255,0,0,0.3)]"
             >
               {youtubeChannelAvatar && (
                 <Image
                   src={youtubeChannelAvatar}
                   alt={youtubeChannelTitle || session?.user?.email || "User"}
-                  width={20}
-                  height={20}
-                  className="h-5 w-5 rounded-full border border-white/20 object-cover flex-shrink-0"
+                  width={16}
+                  height={16}
+                  className="h-4 w-4 sm:h-5 sm:w-5 rounded-full border border-white/20 object-cover flex-shrink-0"
                 />
               )}
               <span className="relative inline-flex items-center justify-center">
                 {/* Width measurer - uses visibility hidden (takes space but invisible) */}
                 <span className="whitespace-nowrap opacity-0 pointer-events-none select-none" aria-hidden="true">
-                  {(youtubeChannelTitle || session?.user?.email || "Sign Out").length > "Sign Out".length 
+                  {(youtubeChannelTitle || session?.user?.email || "Sign Out").length > "Sign Out".length
                     ? (youtubeChannelTitle || session?.user?.email || "Sign Out")
                     : "Sign Out"}
                 </span>
                 {/* Visible texts - absolutely positioned and centered */}
-                <span className="whitespace-nowrap absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group-hover:opacity-0">
+                <span className="whitespace-nowrap absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group-hover:opacity-0 truncate max-w-[120px] sm:max-w-none">
                   {youtubeChannelTitle || session?.user?.email || "Sign Out"}
                 </span>
                 <span className="whitespace-nowrap absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100">

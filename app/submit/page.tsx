@@ -117,7 +117,7 @@ export default function SubmitPage() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-          className={`relative flex w-full items-center justify-between overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] px-8 py-5 shadow-[0_20px_60px_-20px_rgba(0,229,255,0.2)] transition-all duration-300 ${
+          className={`relative flex w-full flex-col sm:flex-row sm:items-center sm:justify-between gap-4 overflow-hidden rounded-xl sm:rounded-2xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] px-4 py-4 sm:px-8 sm:py-5 shadow-[0_20px_60px_-20px_rgba(0,229,255,0.2)] transition-all duration-300 ${
             isModalOpen ? "opacity-30 blur-sm" : "opacity-100"
           }`}
         >
@@ -126,16 +126,16 @@ export default function SubmitPage() {
 
           {/* Left: Title */}
           <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-black uppercase tracking-[0.15em] text-white">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] text-white leading-tight">
               XLNT Feedback
             </h1>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/40">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/40">
               Submit • Review • Improve
             </p>
           </div>
 
         {/* Right: Social Links */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           {SOCIAL_LINKS.tiktok && (
             <TooltipWrapper tooltip="Visit TikTok">
               <motion.a
@@ -147,7 +147,7 @@ export default function SubmitPage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="TikTok"
               >
-                <TIKTOK_ICON className="h-4 w-4" />
+                <TIKTOK_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -162,7 +162,7 @@ export default function SubmitPage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Instagram"
               >
-                <INSTAGRAM_ICON className="h-4 w-4" />
+                <INSTAGRAM_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -177,7 +177,7 @@ export default function SubmitPage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="YouTube"
               >
-                <YOUTUBE_ICON className="h-4 w-4" />
+                <YOUTUBE_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -192,7 +192,7 @@ export default function SubmitPage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Patreon"
               >
-                <PATREON_ICON className="h-4 w-4" />
+                <PATREON_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -207,7 +207,7 @@ export default function SubmitPage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="Spotify Podcast"
               >
-                <SPOTIFY_ICON className="h-4 w-4" />
+                <SPOTIFY_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
@@ -222,7 +222,7 @@ export default function SubmitPage() {
                 className="text-white/50 transition-colors duration-300 hover:text-white"
                 aria-label="XLNT Sound Store"
               >
-                <STORE_ICON className="h-4 w-4" />
+                <STORE_ICON className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.a>
             </TooltipWrapper>
           )}
