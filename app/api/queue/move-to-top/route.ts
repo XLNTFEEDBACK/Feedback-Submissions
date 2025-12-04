@@ -33,10 +33,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get all submissions to find the lowest order value
+    // Get all submissions to find the absolute lowest order value
     const allSubmissions = await db.collection("submissions").get();
     
-    let lowestOrder = 0;
+    let lowestOrder = Number.MAX_SAFE_INTEGER;
     allSubmissions.forEach((doc) => {
       const data = doc.data();
       const order = typeof data.order === "number" 
@@ -47,14 +47,14 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Set the submission's order to be lower than the lowest order
-    // This ensures it appears at the top (lower order = higher priority)
-    // Also set priority to true so it appears above other priority tracks
-    const newOrder = lowestOrder - 1_000_000;
+    // Set the submission's order to be significantly lower than the lowest existing order
+    // This ensures it appears at the absolute top when sorted by order
+    // We subtract a large number to ensure it's always first
+    const newOrder = lowestOrder - 10_000_000_000;
 
+    // Update order only (priority is disabled)
     await submissionRef.update({ 
-      order: newOrder,
-      priority: true 
+      order: newOrder
     });
 
     return NextResponse.json({ success: true });

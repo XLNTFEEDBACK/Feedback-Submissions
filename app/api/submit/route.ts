@@ -91,11 +91,11 @@ export async function POST(req: NextRequest) {
     const isChannelOwner = session.user?.isChannelOwner ?? false;
     const isSubscriber = session.user?.isSubscriber ?? null;
 
-    const requestedPriority = Boolean(priority);
-    const derivedPriority = isAdmin && requestedPriority;
+    // Priority is disabled - all submissions go to the end of the queue
+    const derivedPriority = false;
 
     const now = Date.now();
-    const orderBaseline = derivedPriority ? now - 1_000_000_000 : now;
+    const orderBaseline = now;
 
     const normalizeHandle = (handle?: string | null) => {
       if (typeof handle !== "string") return null;

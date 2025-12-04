@@ -8,6 +8,20 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../firebase/firebase";
 
+// ============================================================================
+// SOCIAL MEDIA LINKS CONFIGURATION
+// ============================================================================
+// Update the URLs below with your actual social media links:
+const SOCIAL_LINKS = {
+  tiktok: "https://www.tiktok.com/@xlntsound", // TODO: Replace with your TikTok URL
+  instagram: "https://www.instagram.com/xlntsound", // TODO: Replace with your Instagram URL
+  youtube: "https://www.youtube.com/@xlntsound", // TODO: Replace with your YouTube URL
+  patreon: "https://www.patreon.com/xlntsound", // TODO: Replace with your Patreon URL
+  spotifyPodcast: "https://open.spotify.com/show/5Tq6mDpe4HsMavswgPwMGo?si=SPweOWJ4Q6WdxkEzEQSpSQ", // TODO: Replace with your Spotify Podcast URL
+  xlntStore: "https://xlntsound.com", // TODO: Replace with your XLNT Sound Store URL
+};
+// ============================================================================
+
 interface Submission {
   id: string;
   soundcloudLink: string;
@@ -108,6 +122,73 @@ const TIKTOK_ICON = (props: SVGProps<SVGSVGElement>) => (
     <path d="M15 5c-1.2 0-2.3-.4-3.2-1.1v6.3c0 3-2.4 5.3-5.4 5.3A5.3 5.3 0 0 1 1 10.2c0-2.9 2.3-5.2 5.2-5.3v2.7c-1 .1-1.8.9-1.8 1.9 0 1.1.9 2 2 2 1.1 0 2-.9 2-2V0h2.2c.2 1.7 1.6 3 3.4 3V5z" />
   </svg>
 );
+
+const YOUTUBE_ICON = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+    <path d="M15.32 4.06c-.434-.772-.905-.914-1.864-.967C12.498 3.03 10.089 3 8.002 3c-2.137 0-4.146.03-5.577.113-.86.053-1.33.194-1.864.967-.31.577-.31 1.936-.31 3.935v.12c0 1.999 0 3.358.31 3.935.434.772.905.914 1.864.967C3.856 12.97 5.865 13 8.002 13c2.137 0 4.146-.03 5.577-.113.86-.053 1.33-.194 1.864-.967.31-.577.31-1.936.31-3.935v-.12c0-1.999 0-3.358-.31-3.935zM6 10V6l5 2-5 2z" />
+  </svg>
+);
+
+const PATREON_ICON = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+    <path d="M10.5 2C7.468 2 5 4.468 5 7.5S7.468 13 10.5 13 16 10.532 16 7.5 13.532 2 10.5 2zM2 2v12h2V2H2z" />
+  </svg>
+);
+
+const SPOTIFY_ICON = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+    <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm3.68 11.54c-.16 0-.32-.08-.4-.24-1.12-.96-2.56-1.48-4.08-1.48-.72 0-1.44.08-2.12.24-.24.08-.48-.08-.56-.32-.08-.24.08-.48.32-.56.8-.16 1.6-.24 2.4-.24 1.68 0 3.28.56 4.56 1.6.2.16.24.44.08.64-.08.16-.24.24-.4.24zm.56-2.24c-.2 0-.36-.08-.48-.28-1.24-1.08-2.84-1.68-4.52-1.68-.8 0-1.6.12-2.32.32-.28.08-.56-.08-.64-.36-.08-.28.08-.56.36-.64.84-.24 1.72-.36 2.6-.36 1.88 0 3.68.68 5.08 1.92.24.2.28.52.08.76-.12.16-.28.32-.48.32zm.64-2.4c-.24 0-.44-.12-.56-.32-1.4-1.2-3.16-1.88-4.96-1.88-.92 0-1.84.12-2.68.36-.32.08-.64-.12-.72-.44-.08-.32.12-.64.44-.72.96-.28 1.96-.4 2.96-.4 2.04 0 4 .76 5.56 2.12.24.2.28.56.08.8-.12.2-.32.32-.56.32z" />
+  </svg>
+);
+
+const STORE_ICON = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+    <path d="M3 3.5C3 2.67 3.67 2 4.5 2h7c.83 0 1.5.67 1.5 1.5V4h1c.55 0 1 .45 1 1v9c0 .55-.45 1-1 1H2c-.55 0-1-.45-1-1V5c0-.55.45-1 1-1h1v-.5zM4.5 3a.5.5 0 0 0-.5.5V4h8v-.5a.5.5 0 0 0-.5-.5h-7zM2 5v9h12V5H2z" />
+  </svg>
+);
+
+// Tooltip wrapper component
+const TooltipWrapper = ({ children, tooltip }: { children: React.ReactNode; tooltip: string }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    const timeout = setTimeout(() => {
+      setShowTooltip(true);
+    }, 1000);
+    setHoverTimeout(timeout);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      setHoverTimeout(null);
+    }
+    setShowTooltip(false);
+  };
+
+  return (
+    <div
+      className="relative inline-flex"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+      {showTooltip && (
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 5 }}
+          transition={{ duration: 0.2 }}
+          className="absolute -bottom-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-black/90 px-3 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur-sm border border-white/10"
+        >
+          {tooltip}
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-black/90 border-l border-t border-white/10" />
+        </motion.div>
+      )}
+    </div>
+  );
+};
 
 const ARROW_UP_ICON = (props: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -220,39 +301,26 @@ export default function QueuePage() {
   }, []);
 
   const sortedSubmissions = useMemo(() => {
-    const subscriptionRank = (submission: Submission) => {
-      if (submission.isSubscriber === true) return 0;
-      if (submission.isSubscriber === false) return 1;
-      return 2;
-    };
-
-    const priorityRank = (submission: Submission) =>
-      submission.priority ? 0 : 1;
-
     const orderRank = (submission: Submission) =>
       typeof submission.order === "number"
         ? submission.order
         : submission.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
 
+    // Simple FIFO queue - sort only by order/timestamp, no prioritization
     return submissions
       .slice()
       .sort((a, b) => {
-        const comparisons = [
-          (a.isChannelOwner ? 0 : 1) - (b.isChannelOwner ? 0 : 1),
-          subscriptionRank(a) - subscriptionRank(b),
-          priorityRank(a) - priorityRank(b),
-          orderRank(a) - orderRank(b),
-        ];
-
-        for (const diff of comparisons) {
-          if (diff !== 0) {
-            return diff;
-          }
+        const orderA = orderRank(a);
+        const orderB = orderRank(b);
+        
+        // If orders are equal, fall back to timestamp
+        if (orderA === orderB) {
+          const timeA = a.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+          const timeB = b.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+          return timeA - timeB;
         }
-
-        const timeA = a.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
-        const timeB = b.timestamp?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
-        return timeA - timeB;
+        
+        return orderA - orderB;
       });
   }, [submissions]);
 
@@ -698,6 +766,32 @@ export default function QueuePage() {
 
   return (
     <div className="min-h-screen w-full bg-[var(--surface-void)] px-4 pb-20 pt-20 text-white">
+      {/* Toast Notifications - Top Right */}
+      <AnimatePresence>
+        {actionNotice && (
+          <motion.div
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            transition={{ duration: 0.3 }}
+            className="fixed top-20 right-4 z-50 rounded-xl border border-[var(--accent-cyan)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] px-6 py-4 text-xs font-bold uppercase tracking-[0.25em] text-[var(--accent-cyan)] shadow-lg backdrop-blur-md"
+          >
+            {actionNotice}
+          </motion.div>
+        )}
+        {actionError && (
+          <motion.div
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            transition={{ duration: 0.3 }}
+            className="fixed top-20 right-4 z-50 rounded-xl border border-[var(--accent-magenta)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] px-6 py-4 text-xs font-bold uppercase tracking-[0.25em] text-[var(--accent-magenta)] shadow-lg backdrop-blur-md"
+          >
+            {actionError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Navigation button in top right */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -768,34 +862,103 @@ export default function QueuePage() {
         <p className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-white/50">
           Track • Review • Level Up
         </p>
+        
+        {/* Social Links */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+          {SOCIAL_LINKS.tiktok && (
+            <TooltipWrapper tooltip="Visit TikTok">
+              <motion.a
+                href={SOCIAL_LINKS.tiktok}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="text-white/60 transition-colors duration-300 hover:text-white"
+                aria-label="TikTok"
+              >
+                <TIKTOK_ICON className="h-5 w-5" />
+              </motion.a>
+            </TooltipWrapper>
+          )}
+          {SOCIAL_LINKS.instagram && (
+            <TooltipWrapper tooltip="Visit Instagram">
+              <motion.a
+                href={SOCIAL_LINKS.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="text-white/60 transition-colors duration-300 hover:text-white"
+                aria-label="Instagram"
+              >
+                <INSTAGRAM_ICON className="h-5 w-5" />
+              </motion.a>
+            </TooltipWrapper>
+          )}
+          {SOCIAL_LINKS.youtube && (
+            <TooltipWrapper tooltip="Visit YouTube">
+              <motion.a
+                href={SOCIAL_LINKS.youtube}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="text-white/60 transition-colors duration-300 hover:text-white"
+                aria-label="YouTube"
+              >
+                <YOUTUBE_ICON className="h-5 w-5" />
+              </motion.a>
+            </TooltipWrapper>
+          )}
+          {SOCIAL_LINKS.patreon && (
+            <TooltipWrapper tooltip="Support on Patreon">
+              <motion.a
+                href={SOCIAL_LINKS.patreon}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="text-white/60 transition-colors duration-300 hover:text-white"
+                aria-label="Patreon"
+              >
+                <PATREON_ICON className="h-5 w-5" />
+              </motion.a>
+            </TooltipWrapper>
+          )}
+          {SOCIAL_LINKS.spotifyPodcast && (
+            <TooltipWrapper tooltip="Listen on Spotify">
+              <motion.a
+                href={SOCIAL_LINKS.spotifyPodcast}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="text-white/60 transition-colors duration-300 hover:text-white"
+                aria-label="Spotify Podcast"
+              >
+                <SPOTIFY_ICON className="h-5 w-5" />
+              </motion.a>
+            </TooltipWrapper>
+          )}
+          {SOCIAL_LINKS.xlntStore && (
+            <TooltipWrapper tooltip="Visit XLNT Store">
+              <motion.a
+                href={SOCIAL_LINKS.xlntStore}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="text-white/60 transition-colors duration-300 hover:text-white"
+                aria-label="XLNT Sound Store"
+              >
+                <STORE_ICON className="h-5 w-5" />
+              </motion.a>
+            </TooltipWrapper>
+          )}
+        </div>
       </motion.header>
 
       <div className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-4">
-        <AnimatePresence>
-          {actionNotice && (
-            <motion.p
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-5 py-3 text-xs font-bold uppercase tracking-[0.25em] text-emerald-300"
-            >
-              {actionNotice}
-            </motion.p>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {actionError && (
-            <motion.p
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="rounded-2xl border border-[var(--accent-magenta)]/30 bg-[var(--accent-magenta)]/10 px-5 py-3 text-xs font-bold uppercase tracking-[0.25em] text-[var(--accent-magenta)]"
-            >
-              {actionError}
-            </motion.p>
-          )}
-        </AnimatePresence>
 
         {sortedSubmissions.length === 0 ? (
           <motion.p
@@ -819,7 +982,7 @@ export default function QueuePage() {
 
               return (
                 <QueueItem
-                  key={sub.id}
+                  key={`submission-${sub.id}`}
                   submission={sub}
                   index={index}
                   isExpanded={isExpanded}
@@ -1014,6 +1177,7 @@ const QueueItem = ({
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
       layout
+      layoutId={`submission-${submission.id}`}
       className={cardClasses}
     >
       <div className="p-5">
@@ -1034,8 +1198,8 @@ const QueueItem = ({
             >
               {position}
             </motion.div>
-            {/* YouTube Channel Name - Compact inline display */}
-            {submission.youtubeChannelTitle && (
+            {/* User Name Display - YouTube Channel or Email */}
+            {submission.youtubeChannelTitle ? (
               <span className="text-sm font-semibold text-white/70 flex items-center gap-2">
                 {submission.youtubeChannelAvatarUrl && (
                   <Image
@@ -1048,7 +1212,11 @@ const QueueItem = ({
                 )}
                 {submission.youtubeChannelTitle}
               </span>
-            )}
+            ) : submission.email ? (
+              <span className="text-sm font-semibold text-white/70">
+                {submission.email}
+              </span>
+            ) : null}
             {SHOW_QUEUE_BADGES && topBadge}
             {false && submission.priority && (
               <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
@@ -1200,34 +1368,39 @@ const QueueItem = ({
         )}
 
         {/* SoundCloud Embed (when expanded) */}
-        <AnimatePresence>
-          {isExpanded && !isEditing && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`mt-4 overflow-hidden rounded-xl border transition-all duration-300 ${
-                isPlaying
-                  ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
-                  : "border-white/10"
-              }`}
-            >
-              <iframe
-                title={`SoundCloud player ${submission.id}`}
-                width="100%"
-                height="140"
-                scrolling="no"
-                frameBorder="no"
-                allow="autoplay"
-                ref={iframeRef}
-                src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
-                  submission.soundcloudLink
-                )}&color=%2300E5FF&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
-              ></iframe>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <motion.div
+          initial={false}
+          animate={{ 
+            opacity: isExpanded && !isEditing ? 1 : 0,
+            height: isExpanded && !isEditing ? "auto" : 0
+          }}
+          transition={{ duration: 0.3 }}
+          className={`mt-4 overflow-hidden rounded-xl border transition-all duration-300 ${
+            isExpanded && !isEditing
+              ? isPlaying
+                ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+                : "border-white/10"
+              : "pointer-events-none"
+          }`}
+          style={{ 
+            visibility: isExpanded && !isEditing ? "visible" : "hidden",
+            height: isExpanded && !isEditing ? "auto" : 0
+          }}
+        >
+          <iframe
+            key={`iframe-${submission.id}`}
+            title={`SoundCloud player ${submission.id}`}
+            width="100%"
+            height="140"
+            scrolling="no"
+            frameBorder="no"
+            allow="autoplay"
+            ref={iframeRef}
+            src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
+              submission.soundcloudLink
+            )}&color=%2300E5FF&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+          ></iframe>
+        </motion.div>
 
         {/* Action Buttons */}
         {!isEditing && (
@@ -1246,16 +1419,6 @@ const QueueItem = ({
               )}
               {isAdmin && (
                 <>
-                  <motion.button
-                    onClick={() => onMoveToTop(submission.id)}
-                    disabled={pendingActionId !== null || index === 0}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    <ARROW_UP_ICON className="h-3.5 w-3.5" />
-                    Top
-                  </motion.button>
                   <motion.button
                     onClick={() => onMove(submission.id, "up")}
                     disabled={pendingActionId !== null || index === 0}
@@ -1280,16 +1443,28 @@ const QueueItem = ({
               )}
             </div>
             {isAdmin && (
-              <motion.button
-                onClick={() => onRemove(submission.id)}
-                disabled={pendingActionId !== null}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <TRASH_ICON className="h-3.5 w-3.5" />
-                Remove
-              </motion.button>
+              <div className="flex flex-wrap gap-2">
+                <motion.button
+                  onClick={() => onMoveToTop(submission.id)}
+                  disabled={pendingActionId !== null || index === 0}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ARROW_UP_ICON className="h-3.5 w-3.5" />
+                  Top
+                </motion.button>
+                <motion.button
+                  onClick={() => onRemove(submission.id)}
+                  disabled={pendingActionId !== null}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <TRASH_ICON className="h-3.5 w-3.5" />
+                  Remove
+                </motion.button>
+              </div>
             )}
           </div>
         )}
