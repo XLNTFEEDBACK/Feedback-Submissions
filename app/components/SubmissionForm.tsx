@@ -44,14 +44,23 @@ const getTrackDisplay = (url: string) => {
   };
 };
 
+const isValidSoundCloudUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'soundcloud.com' && parsed.pathname.length > 1;
+  } catch {
+    return false;
+  }
+};
+
 export default function SubmissionForm({ onModalStateChange }: { onModalStateChange?: (isModalOpen: boolean) => void }) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const youtubeChannelTitle = session?.user?.youtubeChannelTitle ?? null;
+  const youtubeChannelAvatar = session?.user?.youtubeChannelAvatarUrl ?? null;
   const isAdmin = session?.user?.isAdmin ?? false;
   const isChannelOwner = session?.user?.isChannelOwner ?? false;
   const subscriberStatus = session?.user?.isSubscriber;
-  const youtubeChannelTitle = session?.user?.youtubeChannelTitle ?? null;
-  const youtubeChannelAvatar = session?.user?.youtubeChannelAvatarUrl ?? null;
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [tiktokHandle, setTiktokHandle] = useState("");
@@ -59,6 +68,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showReplaceModal, setShowReplaceModal] = useState(false);
+  const [showSubmissionsClosedModal, setShowSubmissionsClosedModal] = useState(false);
   const [pendingSubmission, setPendingSubmission] = useState<{
     soundcloudLink: string;
     instagramHandle: string;
@@ -68,15 +78,43 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
   const [existingSoundcloudLink, setExistingSoundcloudLink] = useState<string | null>(null);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   const showModal = status === "unauthenticated";
+
+  // Check submission status on mount and when authenticated
+  useEffect(() => {
+    const checkSubmissionStatus = async () => {
+      if (status === "unauthenticated") {
+        setCheckingStatus(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/submit/status");
+        const data = await res.json();
+        
+        if (!data.submissionsEnabled) {
+          setShowSubmissionsClosedModal(true);
+        }
+      } catch (error) {
+        console.error("Failed to check submission status:", error);
+        // If check fails, assume enabled (fail open)
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    checkSubmissionStatus();
+  }, [status]);
 
   // Notify parent when modal state changes
   useEffect(() => {
     if (onModalStateChange) {
-      onModalStateChange(showModal || showReplaceModal);
+      onModalStateChange(showModal || showReplaceModal || showSubmissionsClosedModal);
     }
-  }, [showModal, showReplaceModal, onModalStateChange]);
+  }, [showModal, showReplaceModal, showSubmissionsClosedModal, onModalStateChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +152,9 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         setTimeout(() => {
           router.push("/queue");
         }, 500);
+      } else if (data.submissionsDisabled) {
+        setShowSubmissionsClosedModal(true);
+        setLoading(false);
       } else if (data.alreadyExists) {
         setPendingSubmission({
           soundcloudLink,
@@ -214,25 +255,118 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className={`fixed top-4 right-4 z-10 flex gap-2 transition-all duration-300 ${
-          showModal || showReplaceModal ? "opacity-30 blur-sm" : "opacity-100"
+          showModal || showReplaceModal || showSubmissionsClosedModal ? "opacity-30 blur-sm" : "opacity-100"
         }`}
       >
         <Link
           href="/queue"
-          className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+          className="group relative flex items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
         >
           <span className="relative z-10">View Queue</span>
           <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </Link>
         {status === "authenticated" && (
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-red-500 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(255,0,0,0.3)]"
+          <div 
+            className="relative"
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
           >
-            <span className="relative z-10">Sign Out</span>
-            <span className="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-red-500/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-          </button>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="group relative flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-red-500 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(255,0,0,0.3)]"
+            >
+              {youtubeChannelAvatar && (
+                <Image
+                  src={youtubeChannelAvatar}
+                  alt={youtubeChannelTitle || session?.user?.email || "User"}
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 rounded-full border border-white/20 object-cover flex-shrink-0"
+                />
+              )}
+              <span className="relative inline-flex items-center justify-center">
+                {/* Width measurer - uses visibility hidden (takes space but invisible) */}
+                <span className="whitespace-nowrap opacity-0 pointer-events-none select-none" aria-hidden="true">
+                  {(youtubeChannelTitle || session?.user?.email || "Sign Out").length > "Sign Out".length 
+                    ? (youtubeChannelTitle || session?.user?.email || "Sign Out")
+                    : "Sign Out"}
+                </span>
+                {/* Visible texts - absolutely positioned and centered */}
+                <span className="whitespace-nowrap absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group-hover:opacity-0">
+                  {youtubeChannelTitle || session?.user?.email || "Sign Out"}
+                </span>
+                <span className="whitespace-nowrap absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100">
+                  Sign Out
+                </span>
+              </span>
+              <span className="absolute inset-0 bg-gradient-to-r from-red-500/0 via-red-500/10 to-red-500/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
+            </button>
+            
+            {/* Tooltip */}
+            <AnimatePresence>
+              {showTooltip && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.5)] backdrop-blur-md z-50"
+                >
+                  {/* Accent glow */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-[var(--accent-cyan)] to-transparent opacity-60" />
+                  
+                  <div className="flex flex-col gap-3 pt-2">
+                    {/* Email */}
+                    {session?.user?.email && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs uppercase tracking-[0.15em] text-white/50">Email</span>
+                        <span className="text-sm font-semibold text-white">{session.user.email}</span>
+                      </div>
+                    )}
+                    
+                    {/* Channel Name */}
+                    {youtubeChannelTitle && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs uppercase tracking-[0.15em] text-white/50">YouTube Channel</span>
+                        <span className="text-sm font-semibold text-white">{youtubeChannelTitle}</span>
+                      </div>
+                    )}
+                    
+                    {/* Badges */}
+                    {(isChannelOwner || isAdmin || subscriberStatus === true) && (
+                      <div className="flex flex-wrap gap-2">
+                        {isChannelOwner && (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-blue-500 to-cyan-500 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                              <path d="M8 0l2.469 4.995 5.531.805-4 3.894.944 5.506-4.944-2.598-4.944 2.598.944-5.506-4-3.894 5.531-.805z" />
+                            </svg>
+                            Owner
+                          </span>
+                        )}
+                        {isAdmin && (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-emerald-500 to-green-600 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                              <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+                            </svg>
+                            Admin
+                          </span>
+                        )}
+                        {subscriberStatus === true && (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-500 to-[var(--accent-amber)] px-2.5 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                              <path d="M15 8L1 15V1l14 7z" />
+                            </svg>
+                            Subscriber
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </motion.div>
 
@@ -359,6 +493,36 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         )}
       </AnimatePresence>
 
+      {/* Submissions Closed Modal */}
+      <AnimatePresence>
+        {showSubmissionsClosedModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-20 flex items-center justify-center px-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="w-full max-w-xl overflow-hidden rounded-3xl border border-[var(--accent-magenta)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-10 text-center shadow-[0_40px_120px_-40px_rgba(255,0,170,0.4)] relative"
+            >
+              {/* Accent glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-[var(--accent-magenta)] to-transparent opacity-80" />
+
+              <h2 className="text-3xl font-black uppercase tracking-[0.2em] text-white mb-4">
+                Submissions Closed
+              </h2>
+              <p className="text-white/60 mb-8 text-sm leading-relaxed">
+                Submissions are currently disabled. Feedback sessions are not active at this time. Please check back later.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Form */}
       <motion.form
         onSubmit={handleSubmit}
@@ -366,72 +530,9 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className={`mx-auto w-full max-w-2xl flex flex-col gap-6 rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-8 shadow-[0_40px_120px_-40px_rgba(255,0,170,0.5)] transition-all duration-300 ${
-          showModal || showReplaceModal ? "pointer-events-none opacity-30 blur-sm" : "opacity-100"
+          showModal || showReplaceModal || showSubmissionsClosedModal ? "pointer-events-none opacity-30 blur-sm" : "opacity-100"
         }`}
       >
-        {/* User Info Section */}
-        <div className="flex flex-col gap-4 pb-6 border-b border-white/10">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
-            <span>
-              Signed in as{" "}
-              <span className="font-bold text-white">
-                {session?.user?.email ?? "unknown user"}
-              </span>
-            </span>
-          </div>
-
-          {youtubeChannelTitle && (
-            <div className="flex items-center gap-3">
-              {youtubeChannelAvatar && (
-                <Image
-                  src={youtubeChannelAvatar}
-                  alt={youtubeChannelTitle}
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 rounded-full border-2 border-white/20 object-cover"
-                />
-              )}
-              <div className="flex flex-col">
-                <span className="text-xs uppercase tracking-[0.15em] text-white/50">
-                  YouTube Channel
-                </span>
-                <span className="text-sm font-bold text-white">
-                  {youtubeChannelTitle}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Badges */}
-          <div className="flex flex-wrap items-center gap-2">
-            {isChannelOwner && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                  <path d="M8 0l2.469 4.995 5.531.805-4 3.894.944 5.506-4.944-2.598-4.944 2.598.944-5.506-4-3.894 5.531-.805z" />
-                </svg>
-                Owner
-              </span>
-            )}
-            {isAdmin && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-emerald-500 to-green-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                  <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-                </svg>
-                Admin
-              </span>
-            )}
-
-            {subscriberStatus === true && (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-500 to-[var(--accent-amber)] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                  <path d="M15 8L1 15V1l14 7z" />
-                </svg>
-                Subscriber
-              </span>
-            )}
-          </div>
-        </div>
-
         {/* Form Fields */}
         <div className="flex flex-col gap-5">
           {/* SoundCloud Link Input */}
@@ -440,7 +541,9 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
                 SoundCloud Link:
               </span>
-              <span className="text-xs text-red-500 font-bold">*</span>
+              {!isValidSoundCloudUrl(soundcloudLink) && (
+                <span className="text-xs text-red-500 font-bold">*Required</span>
+              )}
             </div>
             <div className="relative">
               <input
@@ -450,6 +553,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
                 onFocus={() => setFocusedInput("soundcloud")}
                 onBlur={() => setFocusedInput(null)}
                 required
+                disabled={showSubmissionsClosedModal}
                 className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
                   focusedInput === "soundcloud"
                     ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
@@ -481,6 +585,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
                   onChange={(e) => setInstagramHandle(e.target.value)}
                   onFocus={() => setFocusedInput("instagram")}
                   onBlur={() => setFocusedInput(null)}
+                  disabled={showSubmissionsClosedModal}
                   className={`w-full rounded-lg border bg-black/40 px-3 py-2.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
                     focusedInput === "instagram"
                       ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
@@ -510,6 +615,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
                   onChange={(e) => setTiktokHandle(e.target.value)}
                   onFocus={() => setFocusedInput("tiktok")}
                   onBlur={() => setFocusedInput(null)}
+                  disabled={showSubmissionsClosedModal}
                   className={`w-full rounded-lg border bg-black/40 px-3 py-2.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
                     focusedInput === "tiktok"
                       ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
@@ -534,7 +640,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         {/* Submit Button */}
         <motion.button
           type="submit"
-          disabled={loading}
+          disabled={loading || showSubmissionsClosedModal}
           whileHover={{ scale: loading ? 1 : 1.02 }}
           whileTap={{ scale: loading ? 1 : 0.98 }}
           className="rounded-full bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 px-8 py-4 text-sm font-black uppercase tracking-[0.3em] text-black shadow-[0_20px_60px_-20px_rgba(0,229,255,0.6)] transition-all duration-300 hover:shadow-[0_20px_60px_-10px_rgba(0,229,255,0.8)] disabled:cursor-not-allowed disabled:opacity-50"

@@ -14,6 +14,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check killswitch - prevent submissions when feedback is not active
+    const configRef = db.collection("config").doc("submissions");
+    const configDoc = await configRef.get();
+    const config = configDoc.data();
+
+    if (config?.submissionEnabled === false) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          submissionsDisabled: true,
+          error: "Submissions are currently disabled. Feedback sessions are not active at this time." 
+        },
+        { status: 403 }
+      );
+    }
+
     const {
       soundcloudLink,
       priority,
@@ -76,8 +92,7 @@ export async function POST(req: NextRequest) {
     const isSubscriber = session.user?.isSubscriber ?? null;
 
     const requestedPriority = Boolean(priority);
-    const derivedPriority =
-      isChannelOwner || (isAdmin && requestedPriority);
+    const derivedPriority = isAdmin && requestedPriority;
 
     const now = Date.now();
     const orderBaseline = derivedPriority ? now - 1_000_000_000 : now;

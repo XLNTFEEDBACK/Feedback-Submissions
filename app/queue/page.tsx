@@ -164,6 +164,7 @@ export default function QueuePage() {
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set());
   const [widgetReady, setWidgetReady] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [clearConfirmSecond, setClearConfirmSecond] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
   const clearConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -176,6 +177,21 @@ export default function QueuePage() {
   const isAdmin = session?.user?.isAdmin ?? false;
   const userEmail = session?.user?.email?.toLowerCase();
   const userChannelId = session?.user?.youtubeChannelId?.toLowerCase();
+
+  // Check if user has a submission in the queue
+  const hasSubmission = useMemo(() => {
+    if (!userEmail && !userChannelId) return false;
+    return submissions.some((sub) => {
+      const submissionEmail = sub.email?.toLowerCase();
+      const submissionChannelId = sub.youtubeChannelId?.toLowerCase();
+      return (
+        (userEmail && userEmail === submissionEmail) ||
+        (userChannelId &&
+          submissionChannelId &&
+          userChannelId === submissionChannelId)
+      );
+    });
+  }, [submissions, userEmail, userChannelId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -378,6 +394,7 @@ export default function QueuePage() {
   );
 
   const handleClearQueue = useCallback(async () => {
+    // First click: show first confirmation
     if (!clearConfirm) {
       setClearConfirm(true);
       if (clearConfirmTimeoutRef.current) {
@@ -385,11 +402,27 @@ export default function QueuePage() {
       }
       clearConfirmTimeoutRef.current = setTimeout(() => {
         setClearConfirm(false);
+        setClearConfirmSecond(false);
         clearConfirmTimeoutRef.current = null;
       }, 5000);
       return;
     }
 
+    // Second click: show second confirmation
+    if (!clearConfirmSecond) {
+      setClearConfirmSecond(true);
+      if (clearConfirmTimeoutRef.current) {
+        clearTimeout(clearConfirmTimeoutRef.current);
+      }
+      clearConfirmTimeoutRef.current = setTimeout(() => {
+        setClearConfirm(false);
+        setClearConfirmSecond(false);
+        clearConfirmTimeoutRef.current = null;
+      }, 5000);
+      return;
+    }
+
+    // Third click: actually clear the queue
     setClearLoading(true);
     setActionError(null);
     setActionNotice(null);
@@ -421,12 +454,13 @@ export default function QueuePage() {
     } finally {
       setClearLoading(false);
       setClearConfirm(false);
+      setClearConfirmSecond(false);
       if (clearConfirmTimeoutRef.current) {
         clearTimeout(clearConfirmTimeoutRef.current);
         clearConfirmTimeoutRef.current = null;
       }
     }
-  }, [clearConfirm]);
+  }, [clearConfirm, clearConfirmSecond]);
 
   useEffect(() => {
     const submissionsRef = collection(db, "submissions");
@@ -469,6 +503,20 @@ export default function QueuePage() {
 
     if (!response.ok) {
       throw new Error("Failed to reorder submissions");
+    }
+  };
+
+  const moveToTop = async (submissionId: string): Promise<void> => {
+    const response = await fetch("/api/queue/move-to-top", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        submissionId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to move submission to top");
     }
   };
 
@@ -529,6 +577,31 @@ export default function QueuePage() {
     } catch (error) {
       console.error("Failed to update submission order", error);
       setActionError("Failed to update submission order. Please try again.");
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const handleMoveToTop = async (submissionId: string) => {
+    if (!isAdmin || pendingActionId) {
+      return;
+    }
+
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      setPendingActionId(submissionId);
+
+      await moveToTop(submissionId);
+
+      // Refresh submissions to get updated order
+      // The Firestore listener will automatically update the list
+      setActionNotice("Submission moved to top of queue.");
+      setTimeout(() => setActionNotice(null), 3000);
+    } catch (error) {
+      console.error("Failed to move submission to top", error);
+      setActionError("Failed to move submission to top. Please try again.");
     } finally {
       setPendingActionId(null);
     }
@@ -624,7 +697,7 @@ export default function QueuePage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[var(--surface-void)] px-4 pb-16 pt-12 text-white">
+    <div className="min-h-screen w-full bg-[var(--surface-void)] px-4 pb-20 pt-20 text-white">
       {/* Navigation button in top right */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -636,10 +709,47 @@ export default function QueuePage() {
           href="/submit"
           className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
         >
-          <span className="relative z-10">Submit Track</span>
+          <span className="relative z-10">
+            {isAdmin || hasSubmission ? "Submission Form" : "Submit Song"}
+          </span>
           <span className="absolute inset-0 bg-gradient-to-r from-[var(--accent-cyan)]/0 via-[var(--accent-cyan)]/10 to-[var(--accent-cyan)]/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         </Link>
       </motion.div>
+
+      {/* Clear Queue button in bottom right (admin only) */}
+      {isAdmin && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="fixed bottom-4 right-4 z-10"
+        >
+          <button
+            onClick={handleClearQueue}
+            disabled={clearLoading}
+            className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,170,0.5)] disabled:cursor-not-allowed disabled:opacity-40 backdrop-blur-md"
+          >
+            <span className="relative z-10">
+              {clearLoading
+                ? "Clearing..."
+                : clearConfirmSecond
+                ? "Are you sure?"
+                : clearConfirm
+                ? "⚠ Confirm Clear"
+                : "Clear Queue"}
+            </span>
+            {(clearConfirm || clearConfirmSecond) && !clearLoading && (
+              <motion.span
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-semibold uppercase tracking-[0.25em] text-[var(--accent-amber)]"
+              >
+                Click again within 5s
+              </motion.span>
+            )}
+          </button>
+        </motion.div>
+      )}
 
       {/* Header */}
       <motion.header
@@ -661,58 +771,6 @@ export default function QueuePage() {
       </motion.header>
 
       <div className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-4">
-        <AnimatePresence>
-          {isAdmin && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--accent-cyan)]/20 bg-[var(--accent-cyan)]/5 px-5 py-3 text-xs font-bold uppercase tracking-[0.25em] text-[var(--accent-cyan)]">
-                <span className="inline-flex items-center gap-2">
-                  <span className="flex h-2 w-2 rounded-full bg-[var(--accent-cyan)] animate-pulse" />
-                  Admin Mode Active
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {isAdmin && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-r from-[var(--surface-elevated)] to-[var(--surface-card)] px-5 py-4"
-            >
-              <button
-                onClick={handleClearQueue}
-                disabled={clearLoading}
-                className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-6 py-2.5 text-xs font-bold uppercase tracking-[0.3em] text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,170,0.5)] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <span className="relative z-10">
-                  {clearLoading
-                    ? "Clearing..."
-                    : clearConfirm
-                    ? "⚠ Confirm Clear"
-                    : "Clear Queue"}
-                </span>
-              </button>
-              {clearConfirm && !clearLoading && (
-                <motion.span
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--accent-amber)]"
-                >
-                  Click again within 5s to delete all
-                </motion.span>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <AnimatePresence>
           {actionNotice && (
             <motion.p
@@ -768,6 +826,7 @@ export default function QueuePage() {
                   isPlaying={isPlaying}
                   hasPlayed={playedIds.has(sub.id)}
                   onMove={handleMove}
+                  onMoveToTop={handleMoveToTop}
                   onRemove={handleRemove}
                   pendingActionId={pendingActionId}
                   isAdmin={isAdmin}
@@ -798,6 +857,9 @@ export default function QueuePage() {
   );
 }
 
+// Feature flag: Set to true to show badges on queue items
+const SHOW_QUEUE_BADGES = false;
+
 const QueueItem = ({
   submission,
   index,
@@ -805,6 +867,7 @@ const QueueItem = ({
   isPlaying,
   hasPlayed,
   onMove,
+  onMoveToTop,
   onRemove,
   pendingActionId,
   isAdmin,
@@ -832,6 +895,7 @@ const QueueItem = ({
   isPlaying: boolean;
   hasPlayed: boolean;
   onMove: (id: string, direction: "up" | "down") => void;
+  onMoveToTop: (id: string) => void;
   onRemove: (id: string) => void;
   pendingActionId: string | null;
   isAdmin: boolean;
@@ -985,8 +1049,8 @@ const QueueItem = ({
                 {submission.youtubeChannelTitle}
               </span>
             )}
-            {topBadge}
-            {submission.priority && (
+            {SHOW_QUEUE_BADGES && topBadge}
+            {false && submission.priority && (
               <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-lg">
                 <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                   <path d="M2 2h12l-2 6 2 6H2l2-6-2-6z" />
@@ -1167,51 +1231,65 @@ const QueueItem = ({
 
         {/* Action Buttons */}
         {!isEditing && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {isOwnSubmission && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              {isOwnSubmission && (
+                <motion.button
+                  onClick={onStartEdit}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
+                >
+                  <EDIT_ICON className="h-3.5 w-3.5" />
+                  Edit
+                </motion.button>
+              )}
+              {isAdmin && (
+                <>
+                  <motion.button
+                    onClick={() => onMoveToTop(submission.id)}
+                    disabled={pendingActionId !== null || index === 0}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ARROW_UP_ICON className="h-3.5 w-3.5" />
+                    Top
+                  </motion.button>
+                  <motion.button
+                    onClick={() => onMove(submission.id, "up")}
+                    disabled={pendingActionId !== null || index === 0}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ARROW_UP_ICON className="h-3.5 w-3.5" />
+                    Up
+                  </motion.button>
+                  <motion.button
+                    onClick={() => onMove(submission.id, "down")}
+                    disabled={pendingActionId !== null || index === total - 1}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ARROW_DOWN_ICON className="h-3.5 w-3.5" />
+                    Down
+                  </motion.button>
+                </>
+              )}
+            </div>
+            {isAdmin && (
               <motion.button
-                onClick={onStartEdit}
+                onClick={() => onRemove(submission.id)}
+                disabled={pendingActionId !== null}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
               >
-                <EDIT_ICON className="h-3.5 w-3.5" />
-                Edit
+                <TRASH_ICON className="h-3.5 w-3.5" />
+                Remove
               </motion.button>
-            )}
-            {isAdmin && (
-              <>
-                <motion.button
-                  onClick={() => onMove(submission.id, "up")}
-                  disabled={pendingActionId !== null || index === 0}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ARROW_UP_ICON className="h-3.5 w-3.5" />
-                  Up
-                </motion.button>
-                <motion.button
-                  onClick={() => onMove(submission.id, "down")}
-                  disabled={pendingActionId !== null || index === total - 1}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white/70 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ARROW_DOWN_ICON className="h-3.5 w-3.5" />
-                  Down
-                </motion.button>
-                <motion.button
-                  onClick={() => onRemove(submission.id)}
-                  disabled={pendingActionId !== null}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,0,170,0.4)] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <TRASH_ICON className="h-3.5 w-3.5" />
-                  Remove
-                </motion.button>
-              </>
             )}
           </div>
         )}

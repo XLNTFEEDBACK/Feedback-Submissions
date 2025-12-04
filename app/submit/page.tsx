@@ -22,7 +22,7 @@ export default function SubmitPage() {
         <div className="absolute bottom-0 right-1/4 w-32 h-1 bg-gradient-to-r from-transparent via-[var(--accent-cyan)] to-transparent opacity-60" />
 
         <h1 className="text-5xl font-black uppercase tracking-[0.4em] text-white drop-shadow-[0_2px_10px_rgba(0,229,255,0.3)]">
-          Submission Form
+          XLNT Feedback Form
         </h1>
         <p className="mt-2 text-sm font-semibold uppercase tracking-[0.3em] text-white/50">
           Share Your Sound • Join the Queue
