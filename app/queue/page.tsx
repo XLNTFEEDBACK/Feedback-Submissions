@@ -1220,9 +1220,9 @@ const QueueItem = ({
   })();
 
   // Volume control state
-  const [volume, setVolume] = useState<number>(70); // Default 70%
+  const [volume, setVolume] = useState<number>(90); // Default 90%
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [lastVolume, setLastVolume] = useState<number>(70); // For mute toggle
+  const [lastVolume, setLastVolume] = useState<number>(90); // For mute toggle
   const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Resolve shortened links so the iframe receives the final SoundCloud URL.
