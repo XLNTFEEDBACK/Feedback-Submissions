@@ -1355,7 +1355,7 @@ const QueueItem = ({
     } catch (error) {
       console.warn("Error initializing SoundCloud widget:", error);
     }
-  }, [isExpanded, onPlay, submission.id, widgetReady, iframeKey, isPlaying, volume, isMuted]);
+  }, [isExpanded, onPlay, submission.id, widgetReady, iframeKey, soundcloudPlayerSrc, isPlaying, volume, isMuted]);
 
   // Determine highest privilege badge (consolidate hierarchy)
   const topBadge = submission.isChannelOwner ? (
