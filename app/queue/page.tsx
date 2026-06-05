@@ -1767,6 +1767,18 @@ const QueueItem = ({
                   <span className="hidden xs:inline">Edit</span>
                 </motion.button>
               )}
+              {hasPlayed && !isPlaying && !isExpanded && (
+                <motion.button
+                  onClick={() => onToggleExpand(submission.id, false)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-magenta)]/45 bg-[var(--accent-magenta)]/10 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[var(--accent-magenta)] transition-all duration-300 hover:border-[var(--accent-magenta)] hover:bg-[var(--accent-magenta)]/15 hover:text-white"
+                  aria-label="Reopen player"
+                >
+                  <RESET_ICON className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span>Reopen</span>
+                </motion.button>
+              )}
               {isAdmin && (
                 <>
                   <motion.button
