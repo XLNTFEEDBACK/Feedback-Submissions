@@ -1183,15 +1183,41 @@ const QueueItem = ({
   const [iframeKey, setIframeKey] = useState(0);
   const wasPlayingRef = useRef(false);
 
-  // State for checking shortened links
-  const [isCheckingPrivate, setIsCheckingPrivate] = useState(false);
-  const [checkedPrivateStatus, setCheckedPrivateStatus] = useState<boolean | null>(null);
+  // State for resolving shortened links
+  const [resolvedSoundcloudUrl, setResolvedSoundcloudUrl] = useState<string | null>(null);
+  const [resolvedPlayerUrl, setResolvedPlayerUrl] = useState<string | null>(null);
+  const [resolvedPrivateStatus, setResolvedPrivateStatus] = useState<boolean | null>(null);
 
   // Determine if track is private
   const isShortened = isShortenedLink(submission.soundcloudLink);
-  const isPrivate = isShortened
-    ? (checkedPrivateStatus ?? false) // Use checked status for shortened links
-    : isPrivateTrack(submission.soundcloudLink); // Direct check for full URLs
+  const shouldResolveSoundcloudUrl =
+    isShortened || isPrivateTrack(submission.soundcloudLink);
+  const playableSoundcloudUrl = resolvedSoundcloudUrl ?? submission.soundcloudLink;
+  const isPrivate =
+    resolvedPrivateStatus ?? isPrivateTrack(playableSoundcloudUrl);
+  const soundcloudPlayerSrc = (() => {
+    const playerUrl = new URL(
+      resolvedPlayerUrl ?? "https://w.soundcloud.com/player/"
+    );
+
+    if (!resolvedPlayerUrl) {
+      playerUrl.searchParams.set("url", playableSoundcloudUrl);
+    }
+
+    playerUrl.searchParams.set("color", "#00E5FF");
+    playerUrl.searchParams.set("auto_play", isPlaying ? "true" : "false");
+    playerUrl.searchParams.set("hide_related", "false");
+    playerUrl.searchParams.set("show_comments", "true");
+    playerUrl.searchParams.set("show_user", "true");
+    playerUrl.searchParams.set("show_reposts", "false");
+    playerUrl.searchParams.set("show_teaser", "false");
+    playerUrl.searchParams.delete("visual");
+    if (isPlaying) {
+      playerUrl.searchParams.set("visual", "true");
+    }
+
+    return playerUrl.toString();
+  })();
 
   // Volume control state
   const [volume, setVolume] = useState<number>(70); // Default 70%
@@ -1199,12 +1225,22 @@ const QueueItem = ({
   const [lastVolume, setLastVolume] = useState<number>(70); // For mute toggle
   const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check if shortened link is private
+  // Resolve shortened links so the iframe receives the final SoundCloud URL.
   useEffect(() => {
-    if (!isShortened || checkedPrivateStatus !== null) return;
+    setResolvedSoundcloudUrl(null);
+    setResolvedPlayerUrl(null);
+    setResolvedPrivateStatus(null);
+  }, [submission.soundcloudLink]);
 
-    const checkPrivateStatus = async () => {
-      setIsCheckingPrivate(true);
+  useEffect(() => {
+    if (
+      !shouldResolveSoundcloudUrl ||
+      resolvedSoundcloudUrl !== null ||
+      resolvedPrivateStatus !== null ||
+      resolvedPlayerUrl !== null
+    ) return;
+
+    const resolveSoundcloudUrl = async () => {
       try {
         const response = await fetch('/api/soundcloud/check-private', {
           method: 'POST',
@@ -1213,17 +1249,31 @@ const QueueItem = ({
         });
 
         const data = await response.json();
-        setCheckedPrivateStatus(data.isPrivate ?? false);
+        setResolvedSoundcloudUrl(
+          typeof data.finalUrl === "string" && data.finalUrl.length > 0
+            ? data.finalUrl
+            : null
+        );
+        setResolvedPlayerUrl(
+          typeof data.embedUrl === "string" && data.embedUrl.length > 0
+            ? data.embedUrl
+            : null
+        );
+        setResolvedPrivateStatus(data.isPrivate ?? false);
       } catch (error) {
-        console.error('Failed to check private status:', error);
-        setCheckedPrivateStatus(false); // Default to public if check fails
-      } finally {
-        setIsCheckingPrivate(false);
+        console.error('Failed to resolve SoundCloud URL:', error);
+        setResolvedPrivateStatus(false); // Default to public if check fails
       }
     };
 
-    checkPrivateStatus();
-  }, [isShortened, submission.soundcloudLink, checkedPrivateStatus]);
+    resolveSoundcloudUrl();
+  }, [
+    shouldResolveSoundcloudUrl,
+    submission.soundcloudLink,
+    resolvedSoundcloudUrl,
+    resolvedPrivateStatus,
+    resolvedPlayerUrl,
+  ]);
 
   // Load saved volume from localStorage on mount
   useEffect(() => {
@@ -1407,11 +1457,6 @@ const QueueItem = ({
       }
     };
   }, []);
-
-  // Handler for clicking private track link
-  const handlePrivateTrackClick = useCallback(() => {
-    onPlay(submission.id);
-  }, [onPlay, submission.id]);
 
   // Dynamic card styling based on playback state
   const cardClasses = `w-full rounded-2xl border transition-all duration-300 ${
@@ -1649,95 +1694,63 @@ const QueueItem = ({
           </>
         )}
 
-        {/* SoundCloud Embed or Private Link (when expanded) */}
-        {isPrivate ? (
-          // Private Track - Show clickable link instead of iframe
-          <motion.div
-            initial={false}
-            animate={{
-              opacity: isExpanded && !isEditing ? 1 : 0,
-              height: isExpanded && !isEditing ? "auto" : 0
-            }}
-            transition={{ duration: 0.3 }}
-            className={`mt-1 overflow-hidden`}
-            style={{
-              visibility: isExpanded && !isEditing ? "visible" : "hidden",
-              height: isExpanded && !isEditing ? "auto" : 0
-            }}
-          >
-            <motion.a
-              href={submission.soundcloudLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handlePrivateTrackClick}
-              className={`flex items-center justify-center rounded-xl border transition-all duration-300 ${
+        {/* SoundCloud Embed (when expanded) */}
+        <motion.div
+          initial={false}
+          animate={{
+            opacity: isExpanded && !isEditing ? 1 : 0,
+            height: isExpanded && !isEditing ? "auto" : 0
+          }}
+          transition={{ duration: 0.3 }}
+          className={`mt-1 overflow-hidden rounded-xl border transition-all duration-300 ${
+            isExpanded && !isEditing
+              ? isPlaying
+                ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+                : "border-white/10"
+              : "pointer-events-none"
+          }`}
+          style={{
+            visibility: isExpanded && !isEditing ? "visible" : "hidden",
+            height: isExpanded && !isEditing ? "auto" : 0
+          }}
+        >
+          {isPrivate && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-black/30 px-3 py-2">
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
                 isPlaying
-                  ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 shadow-[0_0_20px_rgba(0,229,255,0.3)]"
-                  : "border-white/20 bg-white/5 hover:border-[var(--accent-cyan)]/50 hover:bg-white/10 hover:shadow-[0_0_15px_rgba(0,229,255,0.2)]"
-              }`}
-              style={{ height: '100px' }}
-            >
-              {/* Track Info with Lock Icon */}
-              <div className="flex flex-col justify-center items-center gap-0.5">
-                <div className="flex items-center gap-2">
-                  {/* Lock Icon */}
-                  <svg viewBox="0 0 16 16" fill="currentColor" className={`h-4 w-4 flex-shrink-0 transition-colors ${isPlaying ? 'text-[var(--accent-cyan)]' : 'text-white/40'}`}>
-                    <path d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zM6 4a2 2 0 1 1 4 0v2H6V4z" />
-                  </svg>
-                  <span className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${isPlaying ? 'text-[var(--accent-cyan)]' : 'text-white/50'}`}>
-                    Private Track
-                  </span>
-                </div>
-                {trackInfo.artist && trackInfo.track && (
-                  <span className="text-sm font-semibold text-white text-center px-4">
-                    {trackInfo.artist} – {trackInfo.track}
-                  </span>
-                )}
-                <span className="text-[10px] font-medium text-white/30 flex items-center justify-center gap-1">
-                  Click to open in SoundCloud
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5">
-                    <path d="M12 4L4 12M12 4v5M12 4H7" />
-                  </svg>
-                </span>
-              </div>
-            </motion.a>
-          </motion.div>
-        ) : (
-          // Public/Unlisted Track - Show iframe embed
-          <motion.div
-            initial={false}
-            animate={{
-              opacity: isExpanded && !isEditing ? 1 : 0,
-              height: isExpanded && !isEditing ? "auto" : 0
-            }}
-            transition={{ duration: 0.3 }}
-            className={`mt-1 overflow-hidden rounded-xl border transition-all duration-300 ${
-              isExpanded && !isEditing
-                ? isPlaying
-                  ? "border-[var(--accent-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
-                  : "border-white/10"
-                : "pointer-events-none"
-            }`}
-            style={{
-              visibility: isExpanded && !isEditing ? "visible" : "hidden",
-              height: isExpanded && !isEditing ? "auto" : 0
-            }}
-          >
-            <iframe
-              key={`${submission.id}-${iframeKey}`}
-              title={`SoundCloud player ${submission.id}`}
-              width="100%"
-              height={isPlaying ? "280" : "100"}
-              scrolling="no"
-              frameBorder="no"
-              allow="autoplay"
-              ref={iframeRef}
-              src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
-                submission.soundcloudLink
-              )}&color=%2300E5FF&auto_play=${isPlaying ? 'true' : 'false'}&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=false${isPlaying ? '&visual=true' : ''}`}
-            ></iframe>
-          </motion.div>
-        )}
+                  ? "border-[var(--accent-cyan)]/50 bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]"
+                  : "border-white/15 bg-white/5 text-white/55"
+              }`}>
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 flex-shrink-0">
+                  <path d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zM6 4a2 2 0 1 1 4 0v2H6V4z" />
+                </svg>
+                Private Link
+              </span>
+              <a
+                href={playableSoundcloudUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 transition-colors duration-200 hover:text-[var(--accent-cyan)]"
+              >
+                Open in SoundCloud
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5">
+                  <path d="M12 4L4 12M12 4v5M12 4H7" />
+                </svg>
+              </a>
+            </div>
+          )}
+          <iframe
+            key={`${submission.id}-${iframeKey}-${soundcloudPlayerSrc}`}
+            title={`SoundCloud player ${submission.id}`}
+            width="100%"
+            height={isPlaying ? "280" : "100"}
+            scrolling="no"
+            frameBorder="no"
+            allow="autoplay"
+            ref={iframeRef}
+            src={soundcloudPlayerSrc}
+          ></iframe>
+        </motion.div>
 
         {/* Action Buttons */}
         {!isEditing && (
@@ -1780,8 +1793,8 @@ const QueueItem = ({
               )}
             </div>
             <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center">
-              {/* Volume Controls - Bottom right (only for non-private tracks) */}
-              {isExpanded && !isPrivate && (
+              {/* Volume Controls - Bottom right */}
+              {isExpanded && (
                 <div className="flex items-center gap-1.5">
                   {/* Mute Button */}
                   <motion.button
