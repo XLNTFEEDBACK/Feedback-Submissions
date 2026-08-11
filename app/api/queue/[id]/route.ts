@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import {
+  TrackValidationError,
+  validateTrackSubmission,
+} from "@/lib/track-validation";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../../../firebase/firebaseAdmin";
 
 export async function DELETE(
@@ -94,23 +99,28 @@ export async function PATCH(
 
     const body = await req.json();
     const {
+      trackUrl,
       soundcloudLink,
       instagramHandle,
       tiktokHandle,
       priority: priorityUpdate,
     }: {
+      trackUrl?: string;
       soundcloudLink?: string;
       instagramHandle?: string;
       tiktokHandle?: string;
       priority?: boolean;
     } = body;
 
-    if (!soundcloudLink) {
+    const submittedTrackUrl = trackUrl ?? soundcloudLink;
+    if (!submittedTrackUrl) {
       return NextResponse.json(
-        { success: false, error: "Missing SoundCloud link" },
+        { success: false, error: "Missing SoundCloud or Dropbox link" },
         { status: 400 }
       );
     }
+
+    const validatedTrack = await validateTrackSubmission(submittedTrackUrl);
 
     const normalizeHandle = (handle?: string | null) => {
       if (typeof handle !== "string") return null;
@@ -119,7 +129,10 @@ export async function PATCH(
     };
 
     const updateData: Record<string, unknown> = {
-      soundcloudLink,
+      trackUrl: validatedTrack.trackUrl,
+      provider: validatedTrack.provider,
+      trackTitle: validatedTrack.trackTitle,
+      soundcloudLink: FieldValue.delete(),
       instagramHandle: normalizeHandle(instagramHandle),
       tiktokHandle: normalizeHandle(tiktokHandle),
     };
@@ -133,6 +146,13 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof TrackValidationError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 400 },
+      );
+    }
+
     console.error("Failed to update submission", error);
     return NextResponse.json(
       { success: false, error: "Failed to update submission" },

@@ -6,7 +6,17 @@ import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  getDropboxPlaybackUrl,
+  getTrackDisplay,
+  inferTrackProvider,
+  isPrivateSoundCloudTrack,
+  isShortenedSoundCloudLink,
+  parseTrackLink,
+  type TrackProvider,
+} from "@/lib/track-links";
 import { db } from "../firebase/firebase";
+import DropboxAudioPlayer from "../components/DropboxAudioPlayer";
 import Logo from "../components/Logo";
 
 // ============================================================================
@@ -25,7 +35,9 @@ const SOCIAL_LINKS = {
 
 interface Submission {
   id: string;
-  soundcloudLink: string;
+  trackUrl: string;
+  provider: TrackProvider;
+  trackTitle?: string | null;
   email?: string;
   priority?: boolean;
   order?: number;
@@ -39,75 +51,6 @@ interface Submission {
   instagramHandle?: string | null;
   tiktokHandle?: string | null;
 }
-
-const getTrackDisplay = (url: string) => {
-  try {
-    const parsed = new URL(url);
-    const segments = parsed.pathname
-      .split("/")
-      .map((segment) => segment.trim())
-      .filter(Boolean);
-
-    // Filter out secret token segment (starts with 's-')
-    const filteredSegments = segments.filter(seg => !seg.startsWith('s-'));
-
-    // Helper to format track names (replace dashes/underscores with spaces, capitalize)
-    const formatTrackName = (name: string): string => {
-      return decodeURIComponent(name)
-        .replace(/[-_]/g, ' ')
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-    };
-
-    if (filteredSegments.length >= 2) {
-      const artist = formatTrackName(filteredSegments[filteredSegments.length - 2]);
-      const track = formatTrackName(filteredSegments[filteredSegments.length - 1]);
-      return {
-        artist,
-        track,
-        display: `${artist} – ${track}`,
-      };
-    }
-
-    if (filteredSegments.length === 1) {
-      const track = formatTrackName(filteredSegments[0]);
-      return {
-        artist: null,
-        track,
-        display: track,
-      };
-    }
-  } catch {
-    // noop
-  }
-
-  return {
-    artist: null,
-    track: null,
-    display: url,
-  };
-};
-
-// Detect if a SoundCloud URL is a private track (contains secret token)
-const isPrivateTrack = (url: string): boolean => {
-  try {
-    const parsed = new URL(url);
-    return parsed.pathname.includes('/s-');
-  } catch {
-    return false;
-  }
-};
-
-// Detect if a URL is a shortened SoundCloud link
-const isShortenedLink = (url: string): boolean => {
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname === 'on.soundcloud.com';
-  } catch {
-    return false;
-  }
-};
 
 const buildSocialLink = (
   handle: string | null | undefined,
@@ -273,6 +216,7 @@ declare global {
         unbind: (event: string, listener: () => void) => void;
         setVolume: (volume: number) => void;
         getVolume: (callback: (volume: number) => void) => void;
+        pause: () => void;
       };
     };
   }
@@ -296,11 +240,14 @@ export default function QueuePage() {
   const clearConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevPlayingIdRef = useRef<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editSoundcloudLink, setEditSoundcloudLink] = useState("");
+  const [editTrackUrl, setEditTrackUrl] = useState("");
   const [editInstagramHandle, setEditInstagramHandle] = useState("");
   const [editTiktokHandle, setEditTiktokHandle] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [volume, setVolume] = useState(90);
+  const [isMuted, setIsMuted] = useState(false);
+  const [lastVolume, setLastVolume] = useState(90);
 
   const isAdmin = session?.user?.isAdmin ?? false;
   const userEmail = session?.user?.email?.toLowerCase();
@@ -338,6 +285,25 @@ export default function QueuePage() {
       script.onload = null;
     };
   }, []);
+
+  useEffect(() => {
+    const savedVolume =
+      localStorage.getItem("xlnt-player-volume") ??
+      localStorage.getItem("xlnt-soundcloud-volume");
+    if (!savedVolume) return;
+
+    const parsed = Number.parseInt(savedVolume, 10);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
+      setVolume(parsed);
+      setLastVolume(parsed);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isMuted) {
+      localStorage.setItem("xlnt-player-volume", volume.toString());
+    }
+  }, [isMuted, volume]);
 
   useEffect(() => {
     return () => {
@@ -519,6 +485,25 @@ export default function QueuePage() {
     [currentPlayingId]
   );
 
+  const handlePause = useCallback((id: string) => {
+    setCurrentPlayingId((current) => (current === id ? null : current));
+  }, []);
+
+  const handleVolumeChange = useCallback((nextVolume: number) => {
+    setVolume(nextVolume);
+    setLastVolume(nextVolume);
+    setIsMuted(false);
+  }, []);
+
+  const handleMuteToggle = useCallback(() => {
+    setIsMuted((muted) => {
+      if (muted && volume === 0) {
+        setVolume(lastVolume || 90);
+      }
+      return !muted;
+    });
+  }, [lastVolume, volume]);
+
   const handleClearQueue = useCallback(async () => {
     // First click: show first confirmation
     if (!clearConfirm) {
@@ -592,22 +577,30 @@ export default function QueuePage() {
     const submissionsRef = collection(db, "submissions");
 
     const unsubscribe = onSnapshot(submissionsRef, (snapshot) => {
-      const subs: Submission[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        soundcloudLink: doc.data().soundcloudLink,
-        email: doc.data().email,
-        priority: doc.data().priority,
-        order: doc.data().order,
-        timestamp: doc.data().timestamp ?? null,
-        youtubeChannelId: doc.data().youtubeChannelId ?? null,
-        youtubeChannelTitle: doc.data().youtubeChannelTitle ?? null,
-        youtubeChannelAvatarUrl: doc.data().youtubeChannelAvatarUrl ?? null,
-        submittedByRole: doc.data().submittedByRole,
-        isChannelOwner: doc.data().isChannelOwner,
-        isSubscriber: doc.data().isSubscriber,
-        instagramHandle: doc.data().instagramHandle ?? null,
-        tiktokHandle: doc.data().tiktokHandle ?? null,
-      })) as Submission[];
+      const subs: Submission[] = snapshot.docs.flatMap((doc) => {
+        const data = doc.data();
+        const trackUrl = data.trackUrl ?? data.soundcloudLink;
+        if (typeof trackUrl !== "string" || !trackUrl) return [];
+
+        return [{
+          id: doc.id,
+          trackUrl,
+          provider: inferTrackProvider(trackUrl, data.provider),
+          trackTitle: data.trackTitle ?? null,
+          email: data.email,
+          priority: data.priority,
+          order: data.order,
+          timestamp: data.timestamp ?? null,
+          youtubeChannelId: data.youtubeChannelId ?? null,
+          youtubeChannelTitle: data.youtubeChannelTitle ?? null,
+          youtubeChannelAvatarUrl: data.youtubeChannelAvatarUrl ?? null,
+          submittedByRole: data.submittedByRole,
+          isChannelOwner: data.isChannelOwner,
+          isSubscriber: data.isSubscriber,
+          instagramHandle: data.instagramHandle ?? null,
+          tiktokHandle: data.tiktokHandle ?? null,
+        }];
+      });
       setSubmissions(subs);
     });
 
@@ -791,7 +784,7 @@ export default function QueuePage() {
 
   const handleStartEdit = (submission: Submission) => {
     setEditingId(submission.id);
-    setEditSoundcloudLink(submission.soundcloudLink);
+    setEditTrackUrl(submission.trackUrl);
     setEditInstagramHandle(submission.instagramHandle || "");
     setEditTiktokHandle(submission.tiktokHandle || "");
     setEditError(null);
@@ -799,7 +792,7 @@ export default function QueuePage() {
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setEditSoundcloudLink("");
+    setEditTrackUrl("");
     setEditInstagramHandle("");
     setEditTiktokHandle("");
     setEditError(null);
@@ -816,7 +809,7 @@ export default function QueuePage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          soundcloudLink: editSoundcloudLink,
+          trackUrl: editTrackUrl,
           instagramHandle: editInstagramHandle,
           tiktokHandle: editTiktokHandle,
         }),
@@ -1090,21 +1083,26 @@ export default function QueuePage() {
                   total={sortedSubmissions.length}
                   onToggleExpand={handleToggleExpand}
                   onPlay={handlePlay}
+                  onPause={handlePause}
                   widgetReady={widgetReady}
                   isOwnSubmission={isOwnSubmission(sub)}
                   isEditing={editingId === sub.id}
                   onStartEdit={() => handleStartEdit(sub)}
                   onCancelEdit={handleCancelEdit}
                   onSaveEdit={handleSaveEdit}
-                  editSoundcloudLink={editSoundcloudLink}
+                  editTrackUrl={editTrackUrl}
                   editInstagramHandle={editInstagramHandle}
                   editTiktokHandle={editTiktokHandle}
-                  setEditSoundcloudLink={setEditSoundcloudLink}
+                  setEditTrackUrl={setEditTrackUrl}
                   setEditInstagramHandle={setEditInstagramHandle}
                   setEditTiktokHandle={setEditTiktokHandle}
                   editLoading={editLoading}
                   editError={editError}
                   onResetPlayed={handleResetPlayed}
+                  volume={volume}
+                  isMuted={isMuted}
+                  onVolumeChange={handleVolumeChange}
+                  onMuteToggle={handleMuteToggle}
                 />
               );
             })}
@@ -1132,21 +1130,26 @@ const QueueItem = ({
   total,
   onToggleExpand,
   onPlay,
+  onPause,
   widgetReady,
   isOwnSubmission,
   isEditing,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
-  editSoundcloudLink,
+  editTrackUrl,
   editInstagramHandle,
   editTiktokHandle,
-  setEditSoundcloudLink,
+  setEditTrackUrl,
   setEditInstagramHandle,
   setEditTiktokHandle,
   editLoading,
   editError,
   onResetPlayed,
+  volume,
+  isMuted,
+  onVolumeChange,
+  onMuteToggle,
 }: {
   submission: Submission;
   index: number;
@@ -1161,24 +1164,29 @@ const QueueItem = ({
   total: number;
   onToggleExpand: (id: string, isExpanded: boolean) => void;
   onPlay: (id: string) => void;
+  onPause: (id: string) => void;
   widgetReady: boolean;
   isOwnSubmission: boolean;
   isEditing: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
-  editSoundcloudLink: string;
+  editTrackUrl: string;
   editInstagramHandle: string;
   editTiktokHandle: string;
-  setEditSoundcloudLink: (value: string) => void;
+  setEditTrackUrl: (value: string) => void;
   setEditInstagramHandle: (value: string) => void;
   setEditTiktokHandle: (value: string) => void;
   editLoading: boolean;
   editError: string | null;
   onResetPlayed: (id: string) => void;
+  volume: number;
+  isMuted: boolean;
+  onVolumeChange: (volume: number) => void;
+  onMuteToggle: () => void;
 }) => {
   const position = index + 1;
-  const trackInfo = getTrackDisplay(submission.soundcloudLink);
+  const trackInfo = getTrackDisplay(submission.trackUrl, submission.provider);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const wasPlayingRef = useRef(false);
@@ -1188,13 +1196,22 @@ const QueueItem = ({
   const [resolvedPlayerUrl, setResolvedPlayerUrl] = useState<string | null>(null);
   const [resolvedPrivateStatus, setResolvedPrivateStatus] = useState<boolean | null>(null);
 
-  // Determine if track is private
-  const isShortened = isShortenedLink(submission.soundcloudLink);
+  const isSoundCloud = submission.provider === "soundcloud";
+  const dropboxPlaybackUrl =
+    submission.provider === "dropbox"
+      ? getDropboxPlaybackUrl(submission.trackUrl)
+      : null;
+
+  // Determine if a SoundCloud track needs server-side link resolution.
+  const isShortened =
+    isSoundCloud && isShortenedSoundCloudLink(submission.trackUrl);
   const shouldResolveSoundcloudUrl =
-    isShortened || isPrivateTrack(submission.soundcloudLink);
-  const playableSoundcloudUrl = resolvedSoundcloudUrl ?? submission.soundcloudLink;
+    isSoundCloud &&
+    (isShortened || isPrivateSoundCloudTrack(submission.trackUrl));
+  const playableSoundcloudUrl = resolvedSoundcloudUrl ?? submission.trackUrl;
   const isPrivate =
-    resolvedPrivateStatus ?? isPrivateTrack(playableSoundcloudUrl);
+    isSoundCloud &&
+    (resolvedPrivateStatus ?? isPrivateSoundCloudTrack(playableSoundcloudUrl));
   const soundcloudPlayerSrc = (() => {
     const playerUrl = new URL(
       resolvedPlayerUrl ?? "https://w.soundcloud.com/player/"
@@ -1219,18 +1236,12 @@ const QueueItem = ({
     return playerUrl.toString();
   })();
 
-  // Volume control state
-  const [volume, setVolume] = useState<number>(90); // Default 90%
-  const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [lastVolume, setLastVolume] = useState<number>(90); // For mute toggle
-  const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   // Resolve shortened links so the iframe receives the final SoundCloud URL.
   useEffect(() => {
     setResolvedSoundcloudUrl(null);
     setResolvedPlayerUrl(null);
     setResolvedPrivateStatus(null);
-  }, [submission.soundcloudLink]);
+  }, [submission.trackUrl]);
 
   useEffect(() => {
     if (
@@ -1245,7 +1256,7 @@ const QueueItem = ({
         const response = await fetch('/api/soundcloud/check-private', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: submission.soundcloudLink }),
+          body: JSON.stringify({ url: submission.trackUrl }),
         });
 
         const data = await response.json();
@@ -1269,45 +1280,23 @@ const QueueItem = ({
     resolveSoundcloudUrl();
   }, [
     shouldResolveSoundcloudUrl,
-    submission.soundcloudLink,
+    submission.trackUrl,
     resolvedSoundcloudUrl,
     resolvedPrivateStatus,
     resolvedPlayerUrl,
   ]);
 
-  // Load saved volume from localStorage on mount
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const savedVolume = localStorage.getItem('xlnt-soundcloud-volume');
-    if (savedVolume) {
-      const parsed = parseInt(savedVolume, 10);
-      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
-        setVolume(parsed);
-        setLastVolume(parsed);
-      }
-    }
-  }, []);
-
-  // Save volume to localStorage when it changes
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!isMuted) {
-      localStorage.setItem('xlnt-soundcloud-volume', volume.toString());
-    }
-  }, [volume, isMuted]);
-
   // Reload iframe when track becomes active (switches to visual mode)
   useEffect(() => {
-    if (isPlaying && !wasPlayingRef.current) {
+    if (isSoundCloud && isPlaying && !wasPlayingRef.current) {
       // Track just became active - reload with visual mode and auto_play
       setIframeKey(prev => prev + 1);
     }
     wasPlayingRef.current = isPlaying;
-  }, [isPlaying]);
+  }, [isPlaying, isSoundCloud]);
 
   useEffect(() => {
-    if (!isExpanded || !widgetReady) {
+    if (!isSoundCloud || !isExpanded || !widgetReady) {
       return;
     }
     const iframe = iframeRef.current;
@@ -1321,7 +1310,10 @@ const QueueItem = ({
         return;
       }
       const handlePlayEvent = () => onPlay(submission.id);
+      const handlePauseEvent = () => onPause(submission.id);
       widget.bind("play", handlePlayEvent);
+      widget.bind("pause", handlePauseEvent);
+      widget.bind("finish", handlePauseEvent);
 
       // Apply saved volume when widget is ready
       const handleReadyEvent = () => {
@@ -1338,24 +1330,40 @@ const QueueItem = ({
               // Suppress cross-origin postMessage warnings in dev mode
               try {
                 cleanupWidget.unbind("play", handlePlayEvent);
-              } catch (e) {
+                cleanupWidget.unbind("pause", handlePauseEvent);
+                cleanupWidget.unbind("finish", handlePauseEvent);
+              } catch {
                 // Ignore cross-origin errors during cleanup
               }
               try {
                 cleanupWidget.unbind("ready", handleReadyEvent);
-              } catch (e) {
+              } catch {
                 // Ignore cross-origin errors during cleanup
               }
             }
           }
-        } catch (error) {
+        } catch {
           // Ignore cleanup errors
         }
       };
     } catch (error) {
       console.warn("Error initializing SoundCloud widget:", error);
     }
-  }, [isExpanded, onPlay, submission.id, widgetReady, iframeKey, soundcloudPlayerSrc, isPlaying, volume, isMuted]);
+  }, [isExpanded, isMuted, isSoundCloud, onPause, onPlay, submission.id, widgetReady, iframeKey, soundcloudPlayerSrc, volume]);
+
+  useEffect(() => {
+    if (!isSoundCloud || !widgetReady) return;
+    const iframe = iframeRef.current;
+    if (!iframe || !window.SC?.Widget) return;
+
+    try {
+      const widget = window.SC.Widget(iframe);
+      widget.setVolume(isMuted ? 0 : volume);
+      if (!isPlaying) widget.pause();
+    } catch {
+      // The widget can be unavailable briefly while its iframe reloads.
+    }
+  }, [iframeKey, isMuted, isPlaying, isSoundCloud, volume, widgetReady]);
 
   // Determine highest privilege badge (consolidate hierarchy)
   const topBadge = submission.isChannelOwner ? (
@@ -1400,63 +1408,7 @@ const QueueItem = ({
     url: string;
     display: string;
   }>;
-
-  // Volume change handlers
-  const handleVolumeChange = useCallback((newVolume: number) => {
-    setVolume(newVolume);
-    setLastVolume(newVolume);
-
-    if (isMuted) {
-      setIsMuted(false);
-    }
-
-    // Debounce widget update
-    if (volumeTimeoutRef.current) {
-      clearTimeout(volumeTimeoutRef.current);
-    }
-
-    volumeTimeoutRef.current = setTimeout(() => {
-      const iframe = iframeRef.current;
-      if (iframe && window.SC?.Widget && widgetReady) {
-        try {
-          const widget = window.SC.Widget(iframe);
-          widget.setVolume(newVolume);
-        } catch (error) {
-          console.warn('Failed to set volume:', error);
-        }
-      }
-    }, 100); // 100ms debounce
-  }, [isMuted, widgetReady]);
-
-  const handleMuteToggle = useCallback(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !window.SC?.Widget || !widgetReady) return;
-
-    try {
-      const widget = window.SC.Widget(iframe);
-
-      if (isMuted) {
-        // Unmute: restore last volume
-        widget.setVolume(lastVolume);
-        setIsMuted(false);
-      } else {
-        // Mute: set to 0
-        widget.setVolume(0);
-        setIsMuted(true);
-      }
-    } catch (error) {
-      console.warn('Failed to toggle mute:', error);
-    }
-  }, [isMuted, lastVolume, widgetReady]);
-
-  // Cleanup volume timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (volumeTimeoutRef.current) {
-        clearTimeout(volumeTimeoutRef.current);
-      }
-    };
-  }, []);
+  const editTrackValidation = editTrackUrl ? parseTrackLink(editTrackUrl) : null;
 
   // Dynamic card styling based on playback state
   const cardClasses = `w-full rounded-2xl border transition-all duration-300 ${
@@ -1547,6 +1499,16 @@ const QueueItem = ({
                   <span className="text-[9px] sm:text-[10px]">{link.display}</span>
                 </motion.a>
               ))}
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] sm:text-[10px] ${
+                  submission.provider === "dropbox"
+                    ? "border-blue-400/35 bg-blue-400/10 text-blue-300"
+                    : "border-orange-400/35 bg-orange-400/10 text-orange-300"
+                }`}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                {submission.provider === "dropbox" ? "Dropbox" : "SoundCloud"}
+              </span>
             </div>
             {SHOW_QUEUE_BADGES && topBadge}
             {false && submission.priority && (
@@ -1618,15 +1580,24 @@ const QueueItem = ({
           >
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-                SoundCloud Link:
+                SoundCloud or Dropbox Link:
               </label>
               <input
                 type="url"
-                value={editSoundcloudLink}
-                onChange={(e) => setEditSoundcloudLink(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 focus:bg-black/60"
-                placeholder="https://soundcloud.com/your-track"
+                value={editTrackUrl}
+                onChange={(e) => setEditTrackUrl(e.target.value)}
+                className={`w-full rounded-lg border bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none focus:ring-2 focus:bg-black/60 ${
+                  editTrackValidation && !editTrackValidation.valid
+                    ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
+                    : "border-white/10 focus:border-[var(--accent-cyan)] focus:ring-[var(--accent-cyan)]/30"
+                }`}
+                placeholder="Paste a SoundCloud or Dropbox audio link"
               />
+              {editTrackValidation && !editTrackValidation.valid && (
+                <p className="text-xs font-semibold text-red-400">
+                  {editTrackValidation.message}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
@@ -1658,7 +1629,7 @@ const QueueItem = ({
             <div className="flex gap-2">
               <motion.button
                 onClick={onSaveEdit}
-                disabled={editLoading || !editSoundcloudLink.trim()}
+                disabled={editLoading || !editTrackValidation?.valid}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="rounded-full bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 px-5 py-2.5 text-xs font-black uppercase tracking-[0.25em] text-black transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,229,255,0.5)] disabled:cursor-not-allowed disabled:opacity-40"
@@ -1682,7 +1653,7 @@ const QueueItem = ({
             {!isExpanded && (
               <div className="mt-2 sm:mt-3 px-1">
                 <a
-                  href={submission.soundcloudLink}
+                  href={submission.trackUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm sm:text-base md:text-lg font-bold text-white hover:text-[var(--accent-cyan)] transition-colors duration-200 break-words"
@@ -1694,7 +1665,7 @@ const QueueItem = ({
           </>
         )}
 
-        {/* SoundCloud Embed (when expanded) */}
+        {/* Provider player (when expanded) */}
         <motion.div
           initial={false}
           animate={{
@@ -1714,7 +1685,7 @@ const QueueItem = ({
             height: isExpanded && !isEditing ? "auto" : 0
           }}
         >
-          {isPrivate && (
+          {isSoundCloud && isPrivate && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-black/30 px-3 py-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
                 isPlaying
@@ -1739,17 +1710,34 @@ const QueueItem = ({
               </a>
             </div>
           )}
-          <iframe
-            key={`${submission.id}-${iframeKey}-${soundcloudPlayerSrc}`}
-            title={`SoundCloud player ${submission.id}`}
-            width="100%"
-            height={isPlaying ? "280" : "100"}
-            scrolling="no"
-            frameBorder="no"
-            allow="autoplay"
-            ref={iframeRef}
-            src={soundcloudPlayerSrc}
-          ></iframe>
+          {isSoundCloud ? (
+            <iframe
+              key={`${submission.id}-${iframeKey}-${soundcloudPlayerSrc}`}
+              title={`SoundCloud player ${submission.id}`}
+              width="100%"
+              height={isPlaying ? "280" : "100"}
+              scrolling="no"
+              frameBorder="no"
+              allow="autoplay"
+              ref={iframeRef}
+              src={soundcloudPlayerSrc}
+            />
+          ) : dropboxPlaybackUrl ? (
+            <DropboxAudioPlayer
+              sourceUrl={submission.trackUrl}
+              playbackUrl={dropboxPlaybackUrl}
+              title={submission.trackTitle ?? trackInfo.display}
+              isPlaying={isPlaying}
+              volume={volume}
+              isMuted={isMuted}
+              onPlay={() => onPlay(submission.id)}
+              onPause={() => onPause(submission.id)}
+            />
+          ) : (
+            <div className="bg-black/30 px-4 py-6 text-center text-xs font-semibold text-[var(--accent-magenta)]">
+              This Dropbox link is not playable. Edit the submission with a valid audio file link.
+            </div>
+          )}
         </motion.div>
 
         {/* Action Buttons */}
@@ -1810,7 +1798,7 @@ const QueueItem = ({
                 <div className="flex items-center gap-1.5">
                   {/* Mute Button */}
                   <motion.button
-                    onClick={handleMuteToggle}
+                    onClick={onMuteToggle}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className={`flex-shrink-0 flex items-center justify-center rounded-lg border transition-all duration-300 h-7 w-7 ${
@@ -1841,7 +1829,7 @@ const QueueItem = ({
                       min="0"
                       max="100"
                       value={volume}
-                      onChange={(e) => handleVolumeChange(parseInt(e.target.value, 10))}
+                      onChange={(e) => onVolumeChange(parseInt(e.target.value, 10))}
                       className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer m-0
                         [&::-webkit-slider-thumb]:appearance-none
                         [&::-webkit-slider-thumb]:w-2.5

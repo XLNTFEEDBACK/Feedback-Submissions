@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseTrackLink } from '@/lib/track-links';
 
 const extractIframeSrc = (html?: string | null) => {
   if (!html) return null;
@@ -15,22 +16,29 @@ export async function POST(request: NextRequest) {
     }
 
     const soundcloudUrl = url.trim();
+    const parsedTrack = parseTrackLink(soundcloudUrl);
+    if (!parsedTrack.valid || parsedTrack.provider !== 'soundcloud') {
+      return NextResponse.json(
+        { error: 'A valid SoundCloud URL is required' },
+        { status: 400 },
+      );
+    }
 
     // Follow redirects to get the final URL
-    let response = await fetch(soundcloudUrl, {
+    let response = await fetch(parsedTrack.trackUrl, {
       method: 'HEAD',
       redirect: 'follow',
     });
 
     // Some shared links may not behave well with HEAD; retry with GET.
-    if (!response.url || response.url === soundcloudUrl) {
-      response = await fetch(soundcloudUrl, {
+    if (!response.url || response.url === parsedTrack.trackUrl) {
+      response = await fetch(parsedTrack.trackUrl, {
         method: 'GET',
         redirect: 'follow',
       });
     }
 
-    const finalUrl = response.url || soundcloudUrl;
+    const finalUrl = response.url || parsedTrack.trackUrl;
     let embedUrl: string | null = null;
 
     try {

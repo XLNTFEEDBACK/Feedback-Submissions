@@ -6,87 +6,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-
-const getTrackDisplay = (url: string) => {
-  try {
-    const parsed = new URL(url);
-    const segments = parsed.pathname
-      .split("/")
-      .map((segment) => segment.trim())
-      .filter(Boolean);
-
-    if (segments.length >= 2) {
-      const artist = decodeURIComponent(segments[segments.length - 2]);
-      const track = decodeURIComponent(segments[segments.length - 1]);
-      return {
-        artist,
-        track,
-        display: `${artist} – ${track}`,
-      };
-    }
-
-    if (segments.length === 1) {
-      const track = decodeURIComponent(segments[0]);
-      return {
-        artist: null,
-        track,
-        display: track,
-      };
-    }
-  } catch {
-    // noop
-  }
-
-  return {
-    artist: null,
-    track: null,
-    display: url,
-  };
-};
-
-const isValidSoundCloudUrl = (url: string): boolean => {
-  try {
-    const parsed = new URL(url);
-    const validHosts = [
-      'soundcloud.com',
-      'www.soundcloud.com',
-      'm.soundcloud.com',
-      'on.soundcloud.com'
-    ];
-    return validHosts.includes(parsed.hostname) && parsed.pathname.length > 1;
-  } catch {
-    return false;
-  }
-};
-
-const validateSoundCloudUrl = (url: string): { valid: boolean; isPrivate: boolean; message?: string } => {
-  try {
-    const parsed = new URL(url);
-
-    if (!parsed.hostname.includes('soundcloud.com')) {
-      return { valid: false, isPrivate: false, message: 'Must be a SoundCloud URL' };
-    }
-
-    // Check if it's a private track (contains /s-)
-    const isPrivate = parsed.pathname.includes('/s-');
-
-    if (isPrivate) {
-      // Validate private track format: /artist/track/s-token
-      const segments = parsed.pathname.split('/').filter(Boolean);
-      if (segments.length < 3 || !segments[segments.length - 1].startsWith('s-')) {
-        return {
-          valid: false,
-          isPrivate: true,
-          message: 'Invalid private track format. Use the secret share link from SoundCloud.'
-        };
-      }
-    }
-
-    return { valid: true, isPrivate };
-  } catch {
-    return { valid: false, isPrivate: false, message: 'Invalid URL format' };
-  }
-};
+import { getTrackDisplay, parseTrackLink } from "@/lib/track-links";
 
 export default function SubmissionForm({ onModalStateChange }: { onModalStateChange?: (isModalOpen: boolean) => void }) {
   const router = useRouter();
@@ -96,7 +16,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
   const isAdmin = session?.user?.isAdmin ?? false;
   const isChannelOwner = session?.user?.isChannelOwner ?? false;
   const subscriberStatus = session?.user?.isSubscriber;
-  const [soundcloudLink, setSoundcloudLink] = useState("");
+  const [trackUrl, setTrackUrl] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [tiktokHandle, setTiktokHandle] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -105,16 +25,16 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [showSubmissionsClosedModal, setShowSubmissionsClosedModal] = useState(false);
   const [pendingSubmission, setPendingSubmission] = useState<{
-    soundcloudLink: string;
+    trackUrl: string;
     instagramHandle: string;
     tiktokHandle: string;
   } | null>(null);
   const [, setExistingSubmissionId] = useState<string | null>(null);
-  const [existingSoundcloudLink, setExistingSoundcloudLink] = useState<string | null>(null);
+  const [existingTrackUrl, setExistingTrackUrl] = useState<string | null>(null);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [, setCheckingStatus] = useState(true);
 
   const showModal = status === "unauthenticated";
 
@@ -157,16 +77,16 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
     setError("");
     setSubmitted(false);
 
-    // Validate SoundCloud URL
-    if (!isValidSoundCloudUrl(soundcloudLink)) {
-      setError("Please enter a valid SoundCloud link. Only SoundCloud URLs are accepted.");
+    const parsedTrack = parseTrackLink(trackUrl);
+    if (!parsedTrack.valid) {
+      setError(parsedTrack.message);
       setLoading(false);
       return;
     }
 
     try {
       const payload: Record<string, unknown> = {
-        soundcloudLink,
+        trackUrl,
       };
       if (instagramHandle.trim()) {
         payload.instagramHandle = instagramHandle.trim();
@@ -185,7 +105,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
 
       if (data.success) {
         setSubmitted(true);
-        setSoundcloudLink("");
+        setTrackUrl("");
         setInstagramHandle("");
         setTiktokHandle("");
         setShowReplaceModal(false);
@@ -199,12 +119,12 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         setLoading(false);
       } else if (data.alreadyExists) {
         setPendingSubmission({
-          soundcloudLink,
+          trackUrl,
           instagramHandle,
           tiktokHandle,
         });
         setExistingSubmissionId(data.existingSubmissionId);
-        setExistingSoundcloudLink(data.existingSoundcloudLink);
+        setExistingTrackUrl(data.existingTrackUrl);
         setShowReplaceModal(true);
         setLoading(false);
       } else {
@@ -225,7 +145,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
 
     try {
       const payload: Record<string, unknown> = {
-        soundcloudLink: pendingSubmission.soundcloudLink,
+        trackUrl: pendingSubmission.trackUrl,
         replaceExisting: true,
       };
       if (pendingSubmission.instagramHandle.trim()) {
@@ -245,13 +165,13 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
 
       if (data.success) {
         setSubmitted(true);
-        setSoundcloudLink("");
+        setTrackUrl("");
         setInstagramHandle("");
         setTiktokHandle("");
         setShowReplaceModal(false);
         setPendingSubmission(null);
         setExistingSubmissionId(null);
-        setExistingSoundcloudLink(null);
+        setExistingTrackUrl(null);
 
         setTimeout(() => {
           router.push("/queue");
@@ -270,7 +190,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
     setShowReplaceModal(false);
     setPendingSubmission(null);
     setExistingSubmissionId(null);
-    setExistingSoundcloudLink(null);
+    setExistingTrackUrl(null);
     setLoading(false);
   };
 
@@ -288,6 +208,8 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
       );
     }
   }, [status, session?.user]);
+
+  const trackValidation = trackUrl ? parseTrackLink(trackUrl) : null;
 
   return (
     <div className="relative w-full text-white">
@@ -494,18 +416,18 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
               <p className="text-white/60 mb-4 text-sm">
                 You already have a track in the queue:
               </p>
-              {existingSoundcloudLink && (
+              {existingTrackUrl && (
                 <div className="mb-6 rounded-xl border border-white/10 bg-black/40 p-5">
                   <p className="text-base font-bold text-white mb-2">
-                    {getTrackDisplay(existingSoundcloudLink).display}
+                    {getTrackDisplay(existingTrackUrl).display}
                   </p>
                   <a
-                    href={existingSoundcloudLink}
+                    href={existingTrackUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-[var(--accent-cyan)] hover:text-white transition-colors duration-200 break-all"
                   >
-                    {existingSoundcloudLink}
+                    {existingTrackUrl}
                   </a>
                 </div>
               )}
@@ -579,40 +501,42 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
       >
         {/* Form Fields */}
         <div className="flex flex-col gap-5">
-          {/* SoundCloud Link Input */}
+          {/* Track Link Input */}
           <label className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-                SoundCloud Link:
+                SoundCloud or Dropbox Link:
               </span>
-              {soundcloudLink && !isValidSoundCloudUrl(soundcloudLink) && (
-                <span className="text-xs text-red-500 font-bold">Invalid SoundCloud URL</span>
+              {trackValidation && !trackValidation.valid && (
+                <span className="text-xs text-red-500 font-bold">
+                  {trackValidation.message}
+                </span>
               )}
-              {!soundcloudLink && (
+              {!trackUrl && (
                 <span className="text-xs text-red-500 font-bold">*Required</span>
               )}
             </div>
             <div className="relative">
               <input
                 type="url"
-                value={soundcloudLink}
-                onChange={(e) => setSoundcloudLink(e.target.value)}
-                onFocus={() => setFocusedInput("soundcloud")}
+                value={trackUrl}
+                onChange={(e) => setTrackUrl(e.target.value)}
+                onFocus={() => setFocusedInput("track")}
                 onBlur={() => setFocusedInput(null)}
                 required
                 disabled={showSubmissionsClosedModal}
                 className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
-                  soundcloudLink && !isValidSoundCloudUrl(soundcloudLink)
+                  trackValidation && !trackValidation.valid
                     ? "border-red-500/50 ring-2 ring-red-500/30 bg-black/60"
-                    : focusedInput === "soundcloud"
+                    : focusedInput === "track"
                     ? "border-[var(--accent-cyan)] ring-2 ring-[var(--accent-cyan)]/30 bg-black/60 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
-                    : soundcloudLink && isValidSoundCloudUrl(soundcloudLink)
+                    : trackValidation?.valid
                     ? "border-green-500/50"
                     : "border-white/10 hover:border-white/20"
                 }`}
-                placeholder="https://soundcloud.com/your-track"
+                placeholder="Paste a SoundCloud or Dropbox audio link"
               />
-              {focusedInput === "soundcloud" && (
+              {focusedInput === "track" && (
                 <motion.div
                   layoutId="input-glow"
                   className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 opacity-20 blur-sm -z-10"

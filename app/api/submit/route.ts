@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import {
+  TrackValidationError,
+  validateTrackSubmission,
+} from "@/lib/track-validation";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../../firebase/firebaseAdmin"; // Admin SDK import
 
 export async function POST(req: NextRequest) {
@@ -31,22 +36,28 @@ export async function POST(req: NextRequest) {
     }
 
     const {
+      trackUrl,
       soundcloudLink,
-      priority,
       instagramHandle,
       tiktokHandle,
       replaceExisting,
     }: {
+      trackUrl?: string;
       soundcloudLink?: string;
-      priority?: boolean;
       instagramHandle?: string;
       tiktokHandle?: string;
       replaceExisting?: boolean;
     } = await req.json();
 
-    if (!soundcloudLink) {
-      return NextResponse.json({ success: false, error: "Missing SoundCloud link." });
+    const submittedTrackUrl = trackUrl ?? soundcloudLink;
+    if (!submittedTrackUrl) {
+      return NextResponse.json(
+        { success: false, error: "Missing SoundCloud or Dropbox link." },
+        { status: 400 },
+      );
     }
+
+    const validatedTrack = await validateTrackSubmission(submittedTrackUrl);
 
     const userChannelId = session.user?.youtubeChannelId?.toLowerCase();
 
@@ -83,11 +94,11 @@ export async function POST(req: NextRequest) {
         success: false,
         alreadyExists: true,
         existingSubmissionId: allExisting[0].id,
-        existingSoundcloudLink: existingSubmission.soundcloudLink,
+        existingTrackUrl:
+          existingSubmission.trackUrl ?? existingSubmission.soundcloudLink ?? null,
       });
     }
 
-    const isAdmin = session.user?.isAdmin ?? false;
     const isChannelOwner = session.user?.isChannelOwner ?? false;
     const isSubscriber = session.user?.isSubscriber ?? null;
 
@@ -104,7 +115,9 @@ export async function POST(req: NextRequest) {
     };
 
     const submission = {
-      soundcloudLink,
+      trackUrl: validatedTrack.trackUrl,
+      provider: validatedTrack.provider,
+      trackTitle: validatedTrack.trackTitle,
       email: session.user?.email || "",
       priority: derivedPriority,
       timestamp: new Date(),
@@ -128,6 +141,7 @@ export async function POST(req: NextRequest) {
       const existingData = existingDoc.data();
       await existingDoc.ref.update({
         ...submission,
+        soundcloudLink: FieldValue.delete(),
         timestamp: existingData.timestamp,
         order: existingData.order,
       });
@@ -138,7 +152,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err instanceof TrackValidationError) {
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 400 },
+      );
+    }
+
     console.error("Error submitting track:", err);
-    return NextResponse.json({ success: false, error: "Failed to submit track." });
+    return NextResponse.json(
+      { success: false, error: "Failed to submit track." },
+      { status: 500 },
+    );
   }
 }
