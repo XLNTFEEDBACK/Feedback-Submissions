@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  appendPlaybackHistory,
   clampVolume,
   findNextPlayable,
+  findPreviousQueueItem,
   getMiniPlayerPopupPlacement,
   getPlayerQueuePosition,
   parseReviewedMutation,
   shouldRestartCurrentTrack,
   sortPlayerQueue,
-  takePreviousTrack,
 } from "../lib/admin-player.ts";
 import { PlaybackController } from "../lib/playback-controller.ts";
 
@@ -89,17 +88,17 @@ test("parseReviewedMutation accepts only explicit booleans", () => {
   assert.equal(parseReviewedMutation(null), null);
 });
 
-test("playback history avoids duplicate consecutive entries and skips removed tracks", () => {
-  const history = appendPlaybackHistory([], "first");
-  const unchanged = appendPlaybackHistory(history, "first");
-  const complete = appendPlaybackHistory(unchanged, "second");
+test("previous walks backward through queue order regardless of review status", () => {
+  const queue = [
+    submission("first", 10, { reviewedAt: { toMillis: () => 1 } }),
+    submission("second", 20, { reviewedAt: { toMillis: () => 2 } }),
+    submission("third", 30),
+  ];
 
-  assert.deepEqual(complete, ["first", "second"]);
-  assert.deepEqual(takePreviousTrack(complete, new Set(["first"])), {
-    trackId: "first",
-    history: [],
-  });
-  assert.equal(takePreviousTrack([], new Set(["first"])), null);
+  assert.equal(findPreviousQueueItem(queue, "third")?.id, "second");
+  assert.equal(findPreviousQueueItem(queue, "second")?.id, "first");
+  assert.equal(findPreviousQueueItem(queue, "first"), null);
+  assert.equal(findPreviousQueueItem(queue, null)?.id, "third");
 });
 
 test("Spotify-style previous restarts only after the threshold", () => {
@@ -115,7 +114,7 @@ test("mini player placement anchors to the active screen's top-right work area",
       availTop: 25,
       availWidth: 1920,
     }),
-    { width: 420, height: 240, left: 2924, top: 41 },
+    { width: 360, height: 180, left: 2984, top: 41 },
   );
 });
 

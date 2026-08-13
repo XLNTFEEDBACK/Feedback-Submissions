@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { collection, onSnapshot } from "firebase/firestore";
 import {
-  appendPlaybackHistory,
+  ADMIN_PLAYER_SESSION_COMPLETED_KEY,
   findNextPlayable,
+  findPreviousQueueItem,
   shouldRestartCurrentTrack,
   sortPlayerQueue,
-  takePreviousTrack,
   type PlayerSubmission,
 } from "@/lib/admin-player";
 import { PlaybackController } from "@/lib/playback-controller";
@@ -56,7 +56,6 @@ type LoadedSource = { url: string; generation: number };
 const PLAYER_VOLUME_KEY = "xlnt-admin-player-volume";
 const PLAYER_MUTED_KEY = "xlnt-admin-player-muted";
 const PLAYER_CHECKPOINT_KEY = "xlnt-admin-player-checkpoint";
-const SESSION_COMPLETED_KEY = "xlnt-admin-player-completed";
 const PLAYBACK_CHANNEL = "xlnt-feedback-playback";
 const LOAD_TIMEOUT_MS = 12_000;
 
@@ -169,7 +168,6 @@ export default function AdminPlayer({
   const mutedRef = useRef(false);
   const completedRef = useRef<Set<string>>(new Set());
   const failedRef = useRef<Set<string>>(new Set());
-  const historyRef = useRef<string[]>([]);
   const pendingAutoplayRef = useRef(false);
   const pendingSeekRef = useRef(0);
   const loadedTrackRef = useRef<{
@@ -224,7 +222,7 @@ export default function AdminPlayer({
     completedRef.current = sessionCompletedIds;
     try {
       sessionStorage.setItem(
-        SESSION_COMPLETED_KEY,
+        ADMIN_PLAYER_SESSION_COMPLETED_KEY,
         JSON.stringify([...sessionCompletedIds]),
       );
     } catch {
@@ -285,7 +283,7 @@ export default function AdminPlayer({
       setMuted(nextMuted);
 
       const completed = JSON.parse(
-        sessionStorage.getItem(SESSION_COMPLETED_KEY) ?? "[]",
+        sessionStorage.getItem(ADMIN_PLAYER_SESSION_COMPLETED_KEY) ?? "[]",
       ) as unknown;
       if (
         Array.isArray(completed) &&
@@ -384,6 +382,16 @@ export default function AdminPlayer({
     const channel = new BroadcastChannel(PLAYBACK_CHANNEL);
     broadcastRef.current = channel;
     channel.onmessage = (event: MessageEvent<{ type?: string; sender?: string }>) => {
+      if (event.data?.type === "reset-reviewed") {
+        const resetCompleted = new Set<string>();
+        const resetFailed = new Set<string>();
+        completedRef.current = resetCompleted;
+        failedRef.current = resetFailed;
+        setSessionCompletedIds(resetCompleted);
+        setFailedIds(resetFailed);
+        setNotice("Queue review status reset.");
+        return;
+      }
       if (
         event.data?.type === "claim" &&
         event.data.sender !== instanceIdRef.current &&
@@ -553,7 +561,6 @@ export default function AdminPlayer({
       if (!current) return;
 
       pauseActiveRef.current();
-      historyRef.current = appendPlaybackHistory(historyRef.current, current.id);
       let completed = completedRef.current;
       if (markReviewed) {
         completed = new Set(completedRef.current);
@@ -676,19 +683,15 @@ export default function AdminPlayer({
       return;
     }
 
-    const availableIds = new Set(submissionsRef.current.map((item) => item.id));
-    const previous = takePreviousTrack(historyRef.current, availableIds);
-    if (previous) {
-      historyRef.current = previous.history;
-      const previousSubmission = submissionsRef.current.find(
-        (item) => item.id === previous.trackId,
-      );
-      if (previousSubmission) {
-        const keepPlaying =
-          statusRef.current === "playing" || pendingAutoplayRef.current;
-        startTrackRef.current(previousSubmission, keepPlaying, 0);
-        return;
-      }
+    const previousSubmission = findPreviousQueueItem(
+      submissionsRef.current,
+      current?.id ?? null,
+    );
+    if (previousSubmission) {
+      const keepPlaying =
+        statusRef.current === "playing" || pendingAutoplayRef.current;
+      startTrackRef.current(previousSubmission, keepPlaying, 0);
+      return;
     }
 
     if (current) {
@@ -1005,7 +1008,7 @@ export default function AdminPlayer({
   }, [handleNext, handlePrevious, toggleMute, togglePlayback]);
 
   const canPlay = Boolean(currentSubmission || nextAvailable);
-  const canGoPrevious = Boolean(currentSubmission || historyRef.current.length);
+  const canGoPrevious = Boolean(currentSubmission || submissions.length);
 
   const playerSurface = (
     <main className={styles.pageShell}>

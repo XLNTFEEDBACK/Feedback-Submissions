@@ -1,5 +1,7 @@
 import type { TrackProvider } from "./track-links";
 
+export const ADMIN_PLAYER_SESSION_COMPLETED_KEY = "xlnt-admin-player-completed";
+
 export interface QueueTimestamp {
   toMillis?: () => number;
 }
@@ -61,24 +63,14 @@ export const clampVolume = (volume: number) =>
 
 export const PREVIOUS_RESTART_THRESHOLD_SECONDS = 3;
 
-export const appendPlaybackHistory = (
-  history: readonly string[],
-  trackId: string,
-) =>
-  history.at(-1) === trackId ? history.slice() : [...history, trackId];
-
-export const takePreviousTrack = (
-  history: readonly string[],
-  availableIds: ReadonlySet<string>,
-): { trackId: string; history: string[] } | null => {
-  const remaining = history.slice();
-  while (remaining.length > 0) {
-    const trackId = remaining.pop();
-    if (trackId && availableIds.has(trackId)) {
-      return { trackId, history: remaining };
-    }
-  }
-  return null;
+export const findPreviousQueueItem = <T extends PlayerSubmission>(
+  items: T[],
+  currentId: string | null,
+): T | null => {
+  const sorted = sortPlayerQueue(items);
+  if (!currentId) return sorted.at(-1) ?? null;
+  const currentIndex = sorted.findIndex((item) => item.id === currentId);
+  return currentIndex > 0 ? sorted[currentIndex - 1] : null;
 };
 
 export const shouldRestartCurrentTrack = (
@@ -92,8 +84,8 @@ export const getMiniPlayerPopupPlacement = (
     availTop?: number;
     availWidth: number;
   },
-  width = 420,
-  height = 240,
+  width = 360,
+  height = 180,
   edgeOffset = 16,
 ) => {
   const availableLeft = screen.availLeft ?? 0;

@@ -5,7 +5,10 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { getMiniPlayerPopupPlacement } from "@/lib/admin-player";
+import {
+  ADMIN_PLAYER_SESSION_COMPLETED_KEY,
+  getMiniPlayerPopupPlacement,
+} from "@/lib/admin-player";
 import {
   getDropboxPlaybackUrl,
   getTrackDisplay,
@@ -254,6 +257,9 @@ export default function QueuePage() {
   const [clearConfirmSecond, setClearConfirmSecond] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
   const clearConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [resetReviewedConfirm, setResetReviewedConfirm] = useState(false);
+  const [resetReviewedLoading, setResetReviewedLoading] = useState(false);
+  const resetReviewedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevPlayingIdRef = useRef<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTrackUrl, setEditTrackUrl] = useState("");
@@ -327,8 +333,8 @@ export default function QueuePage() {
 
       try {
         const nextWindow = await pictureInPictureApi.requestWindow({
-          width: 420,
-          height: 240,
+          width: 360,
+          height: 180,
           disallowReturnToOpener: true,
         });
         nextWindow.document.title = "";
@@ -413,6 +419,9 @@ export default function QueuePage() {
     return () => {
       if (clearConfirmTimeoutRef.current) {
         clearTimeout(clearConfirmTimeoutRef.current);
+      }
+      if (resetReviewedTimeoutRef.current) {
+        clearTimeout(resetReviewedTimeoutRef.current);
       }
     };
   }, []);
@@ -711,6 +720,67 @@ export default function QueuePage() {
       }
     }
   }, [clearConfirm, clearConfirmSecond]);
+
+  const handleResetReviewed = useCallback(async () => {
+    if (!isAdmin || resetReviewedLoading) return;
+
+    if (!resetReviewedConfirm) {
+      setResetReviewedConfirm(true);
+      if (resetReviewedTimeoutRef.current) {
+        clearTimeout(resetReviewedTimeoutRef.current);
+      }
+      resetReviewedTimeoutRef.current = setTimeout(() => {
+        setResetReviewedConfirm(false);
+        resetReviewedTimeoutRef.current = null;
+      }, 5000);
+      return;
+    }
+
+    setResetReviewedLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      const response = await fetch("/api/queue/reset-reviewed", {
+        method: "POST",
+      });
+      const data = (await response.json()) as {
+        success?: boolean;
+        updated?: number;
+        error?: string;
+      };
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to reset queue review status.");
+      }
+
+      setSubmissions((current) =>
+        current.map((submission) => ({ ...submission, reviewedAt: null })),
+      );
+      setPlayedIds(new Set());
+      sessionStorage.removeItem(ADMIN_PLAYER_SESSION_COMPLETED_KEY);
+      playbackChannelRef.current?.postMessage({
+        type: "reset-reviewed",
+        sender: queueInstanceIdRef.current,
+      });
+      setActionNotice(
+        `${data.updated ?? 0} ${data.updated === 1 ? "track" : "tracks"} reset to Unreviewed.`,
+      );
+    } catch (error) {
+      console.error("Failed to reset queue review status", error);
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to reset queue review status.",
+      );
+    } finally {
+      setResetReviewedLoading(false);
+      setResetReviewedConfirm(false);
+      if (resetReviewedTimeoutRef.current) {
+        clearTimeout(resetReviewedTimeoutRef.current);
+        resetReviewedTimeoutRef.current = null;
+      }
+    }
+  }, [isAdmin, resetReviewedConfirm, resetReviewedLoading]);
 
   useEffect(() => {
     const submissionsRef = collection(db, "submissions");
@@ -1063,14 +1133,32 @@ export default function QueuePage() {
         </Link>
       </motion.div>
 
-      {/* Clear Queue button in bottom left (admin only) */}
+      {/* Admin queue controls in bottom left */}
       {isAdmin && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 z-10"
+          className="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 z-10 flex items-center gap-2"
         >
+          <button
+            onClick={handleResetReviewed}
+            disabled={resetReviewedLoading}
+            className="group relative overflow-visible rounded-full border border-[var(--accent-cyan)]/45 bg-[var(--accent-cyan)]/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:px-5 sm:py-2 sm:text-xs sm:tracking-[0.2em]"
+          >
+            <span className="relative z-10 whitespace-nowrap">
+              {resetReviewedLoading
+                ? "Resetting..."
+                : resetReviewedConfirm
+                  ? "Confirm Reset"
+                  : "Reset Reviewed"}
+            </span>
+            {resetReviewedConfirm && !resetReviewedLoading && (
+              <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.15em] text-[var(--accent-cyan)]">
+                Keeps every song
+              </span>
+            )}
+          </button>
           <button
             onClick={handleClearQueue}
             disabled={clearLoading}
