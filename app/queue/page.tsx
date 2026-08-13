@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode, SVGProps } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode, SVGProps } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { getMiniPlayerPopupPlacement } from "@/lib/admin-player";
 import {
   getDropboxPlaybackUrl,
   getTrackDisplay,
@@ -259,6 +260,42 @@ export default function QueuePage() {
   const isAdmin = session?.user?.isAdmin ?? false;
   const userEmail = session?.user?.email?.toLowerCase();
   const userChannelId = session?.user?.youtubeChannelId?.toLowerCase();
+
+  const openMiniPlayer = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    const currentScreen = window.screen as Screen & {
+      availLeft?: number;
+      availTop?: number;
+    };
+    const placement = getMiniPlayerPopupPlacement(currentScreen);
+    const popup = window.open(
+      "",
+      "xlnt-feedback-mini-player",
+      [
+        "popup=yes",
+        `width=${placement.width}`,
+        `height=${placement.height}`,
+        `left=${Math.round(placement.left)}`,
+        `top=${Math.round(placement.top)}`,
+        "resizable=yes",
+        "scrollbars=no",
+      ].join(","),
+    );
+
+    if (popup) {
+      try {
+        if (popup.location.pathname !== "/player") {
+          popup.location.replace("/player");
+        }
+      } catch {
+        popup.location.href = "/player";
+      }
+      popup.focus();
+      return;
+    }
+
+    window.location.assign("/player?popup=blocked");
+  }, []);
 
   // Check if user has a submission in the queue
   const hasSubmission = useMemo(() => {
@@ -949,14 +986,13 @@ export default function QueuePage() {
         className="fixed top-3 right-3 sm:top-4 sm:right-4 z-10 flex items-center gap-2"
       >
         {isAdmin && (
-          <Link
+          <a
             href="/player"
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={openMiniPlayer}
             className="group relative overflow-hidden rounded-full border border-[var(--accent-cyan)]/40 bg-[var(--accent-cyan)]/10 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/15 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
           >
             <span className="relative z-10 whitespace-nowrap">Mini Player</span>
-          </Link>
+          </a>
         )}
         <Link
           href="/submit"

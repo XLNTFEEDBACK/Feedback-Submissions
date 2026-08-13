@@ -60,6 +60,56 @@ export const getPlayerQueuePosition = (
 export const clampVolume = (volume: number) =>
   Math.min(100, Math.max(0, Math.round(volume)));
 
+export const PREVIOUS_RESTART_THRESHOLD_SECONDS = 3;
+
+export const appendPlaybackHistory = (
+  history: readonly string[],
+  trackId: string,
+) =>
+  history.at(-1) === trackId ? history.slice() : [...history, trackId];
+
+export const takePreviousTrack = (
+  history: readonly string[],
+  availableIds: ReadonlySet<string>,
+): { trackId: string; history: string[] } | null => {
+  const remaining = history.slice();
+  while (remaining.length > 0) {
+    const trackId = remaining.pop();
+    if (trackId && availableIds.has(trackId)) {
+      return { trackId, history: remaining };
+    }
+  }
+  return null;
+};
+
+export const shouldRestartCurrentTrack = (
+  position: number,
+  threshold = PREVIOUS_RESTART_THRESHOLD_SECONDS,
+) => Number.isFinite(position) && position > threshold;
+
+export const getMiniPlayerPopupPlacement = (
+  screen: {
+    availLeft?: number;
+    availTop?: number;
+    availWidth: number;
+  },
+  width = 420,
+  height = 240,
+  edgeOffset = 16,
+) => {
+  const availableLeft = screen.availLeft ?? 0;
+  const availableTop = screen.availTop ?? 0;
+  return {
+    width,
+    height,
+    left: Math.max(
+      availableLeft,
+      availableLeft + screen.availWidth - width - edgeOffset,
+    ),
+    top: availableTop + edgeOffset,
+  };
+};
+
 export const parseReviewedMutation = (body: unknown): boolean | null => {
   if (typeof body !== "object" || body === null || !("reviewed" in body)) {
     return null;

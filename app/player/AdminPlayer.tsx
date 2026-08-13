@@ -1,15 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { collection, onSnapshot } from "firebase/firestore";
 import {
+  appendPlaybackHistory,
   findNextPlayable,
-  getPlayerQueuePosition,
+  shouldRestartCurrentTrack,
   sortPlayerQueue,
+  takePreviousTrack,
   type PlayerSubmission,
 } from "@/lib/admin-player";
+import { PlaybackController } from "@/lib/playback-controller";
 import {
   getDropboxPlaybackUrl,
   getTrackDisplay,
@@ -25,21 +26,14 @@ type PlaybackStatus =
   | "loading"
   | "playing"
   | "paused"
-  | "caught-up"
-  | "error";
+  | "caught-up";
 
-type SoundCloudProgress = {
-  currentPosition?: number;
-};
+type SoundCloudProgress = { currentPosition?: number };
 
 type SoundCloudSound = {
   title?: string;
   artwork_url?: string;
-  permalink_url?: string;
-  user?: {
-    username?: string;
-    permalink_url?: string;
-  };
+  user?: { username?: string };
 };
 
 type SoundCloudWidget = {
@@ -53,14 +47,8 @@ type SoundCloudWidget = {
   getCurrentSound: (callback: (sound: SoundCloudSound) => void) => void;
 };
 
-type DocumentPictureInPictureApi = {
-  requestWindow: (options: { width: number; height: number }) => Promise<Window>;
-};
-
-type PlaybackCheckpoint = {
-  trackId: string;
-  position: number;
-};
+type PlaybackCheckpoint = { trackId: string; position: number };
+type LoadedSource = { url: string; generation: number };
 
 const PLAYER_VOLUME_KEY = "xlnt-admin-player-volume";
 const PLAYER_MUTED_KEY = "xlnt-admin-player-muted";
@@ -83,7 +71,7 @@ const safeSetActionHandler = (
   try {
     navigator.mediaSession.setActionHandler(action, handler);
   } catch {
-    // Browser does not implement this Media Session action.
+    // Some browsers expose Media Session without every action.
   }
 };
 
@@ -93,13 +81,6 @@ const getSoundCloudApi = () =>
       SC?: { Widget?: (iframe: HTMLIFrameElement) => SoundCloudWidget };
     }
   ).SC;
-
-const getDocumentPipApi = () =>
-  (
-    window as unknown as {
-      documentPictureInPicture?: DocumentPictureInPictureApi;
-    }
-  ).documentPictureInPicture;
 
 const parseCheckpoint = (): PlaybackCheckpoint | null => {
   try {
@@ -121,14 +102,16 @@ const parseCheckpoint = (): PlaybackCheckpoint | null => {
 
 const getFallbackMetadata = (submission: PlayerSubmission) => ({
   artist:
-    submission.provider === "dropbox"
-      ? submission.artistName?.trim() || "Unknown artist"
-      : submission.artistName?.trim() || "SoundCloud artist",
+    submission.artistName?.trim() ||
+    (submission.provider === "dropbox" ? "Unknown artist" : "SoundCloud artist"),
   title:
     submission.trackTitle?.trim() ||
     getTrackDisplay(submission.trackUrl, submission.provider).display,
   artwork: null as string | null,
 });
+
+const getEffectiveVolume = (volume: number, muted: boolean) =>
+  muted ? 0 : volume;
 
 export default function AdminPlayer() {
   const [submissions, setSubmissions] = useState<PlayerSubmission[]>([]);
@@ -139,7 +122,7 @@ export default function AdminPlayer() {
   const [duration, setDuration] = useState(0);
   const [metadata, setMetadata] = useState({
     artist: "XLNT Feedback",
-    title: "Ready to start the queue",
+    title: "Ready to play",
     artwork: null as string | null,
   });
   const [volume, setVolume] = useState(90);
@@ -150,11 +133,13 @@ export default function AdminPlayer() {
     new Set(),
   );
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
-  const [soundcloudSrc, setSoundcloudSrc] = useState<string | null>(null);
-  const [dropboxSrc, setDropboxSrc] = useState<string | null>(null);
+  const [soundcloudSource, setSoundcloudSource] = useState<LoadedSource | null>(null);
+  const [dropboxSource, setDropboxSource] = useState<LoadedSource | null>(null);
   const [soundcloudApiReady, setSoundcloudApiReady] = useState(false);
-  const [pipWindow, setPipWindow] = useState<Window | null>(null);
-  const [pipSupported, setPipSupported] = useState(false);
+
+  const controllerRef = useRef<PlaybackController | null>(null);
+  if (!controllerRef.current) controllerRef.current = new PlaybackController();
+  const controller = controllerRef.current;
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const soundcloudIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -165,14 +150,21 @@ export default function AdminPlayer() {
   const statusRef = useRef<PlaybackStatus>("idle");
   const positionRef = useRef(0);
   const durationRef = useRef(0);
+  const volumeRef = useRef(90);
+  const mutedRef = useRef(false);
   const completedRef = useRef<Set<string>>(new Set());
   const failedRef = useRef<Set<string>>(new Set());
+  const historyRef = useRef<string[]>([]);
   const pendingAutoplayRef = useRef(false);
   const pendingSeekRef = useRef(0);
-  const loadedTrackRef = useRef<{ id: string; url: string } | null>(null);
+  const loadedTrackRef = useRef<{
+    id: string;
+    url: string;
+    generation: number;
+  } | null>(null);
   const restoredRef = useRef(false);
   const attemptsRef = useRef<Map<string, number>>(new Map());
-  const loadTokenRef = useRef(0);
+  const loadGenerationRef = useRef(0);
   const checkpointSavedAtRef = useRef(0);
   const instanceIdRef = useRef(
     `player-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -185,16 +177,8 @@ export default function AdminPlayer() {
     (track: PlayerSubmission, autoplay: boolean, seek?: number) => void
   >(() => undefined);
 
-  const sortedSubmissions = useMemo(
-    () => sortPlayerQueue(submissions),
-    [submissions],
-  );
   const currentSubmission = useMemo(
     () => submissions.find((submission) => submission.id === currentId) ?? null,
-    [currentId, submissions],
-  );
-  const queuePosition = useMemo(
-    () => getPlayerQueuePosition(submissions, currentId),
     [currentId, submissions],
   );
   const nextAvailable = useMemo(
@@ -238,15 +222,52 @@ export default function AdminPlayer() {
   }, [failedIds]);
 
   useEffect(() => {
+    const unregisterDropbox = controller.register("dropbox", {
+      load: (source, generation) => {
+        setSoundcloudSource(null);
+        setDropboxSource({ url: source, generation });
+      },
+      play: () => audioRef.current?.play(),
+      pause: () => audioRef.current?.pause(),
+      seek: (seconds) => {
+        if (audioRef.current) audioRef.current.currentTime = seconds;
+      },
+      setVolume: (nextVolume) => {
+        if (audioRef.current) audioRef.current.volume = nextVolume / 100;
+      },
+    });
+    const unregisterSoundcloud = controller.register("soundcloud", {
+      load: (source, generation) => {
+        setDropboxSource(null);
+        setSoundcloudSource({ url: source, generation });
+      },
+      play: () => soundcloudWidgetRef.current?.play(),
+      pause: () => soundcloudWidgetRef.current?.pause(),
+      seek: (seconds) => soundcloudWidgetRef.current?.seekTo(seconds * 1000),
+      setVolume: (nextVolume) => soundcloudWidgetRef.current?.setVolume(nextVolume),
+    });
+
+    return () => {
+      controller.clear();
+      unregisterDropbox();
+      unregisterSoundcloud();
+    };
+  }, [controller]);
+
+  useEffect(() => {
     try {
       const savedVolume = Number.parseInt(
         localStorage.getItem(PLAYER_VOLUME_KEY) ?? "90",
         10,
       );
       if (Number.isFinite(savedVolume)) {
-        setVolume(Math.min(100, Math.max(0, savedVolume)));
+        const nextVolume = Math.min(100, Math.max(0, savedVolume));
+        volumeRef.current = nextVolume;
+        setVolume(nextVolume);
       }
-      setMuted(localStorage.getItem(PLAYER_MUTED_KEY) === "true");
+      const nextMuted = localStorage.getItem(PLAYER_MUTED_KEY) === "true";
+      mutedRef.current = nextMuted;
+      setMuted(nextMuted);
 
       const completed = JSON.parse(
         sessionStorage.getItem(SESSION_COMPLETED_KEY) ?? "[]",
@@ -260,20 +281,33 @@ export default function AdminPlayer() {
         setSessionCompletedIds(restored);
       }
     } catch {
-      // Use safe defaults when storage is unavailable or malformed.
+      // Safe defaults are already initialized.
     }
 
-    setPipSupported(Boolean(getDocumentPipApi()));
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("popup") === "blocked") {
+      setNotice("Popup blocked — player opened in this tab.");
+      query.delete("popup");
+      const nextQuery = query.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`,
+      );
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(PLAYER_VOLUME_KEY, String(volume));
-    localStorage.setItem(PLAYER_MUTED_KEY, String(muted));
-
-    const effectiveVolume = muted ? 0 : volume;
-    if (audioRef.current) audioRef.current.volume = effectiveVolume / 100;
-    soundcloudWidgetRef.current?.setVolume(effectiveVolume);
-  }, [muted, volume]);
+    volumeRef.current = volume;
+    mutedRef.current = muted;
+    try {
+      localStorage.setItem(PLAYER_VOLUME_KEY, String(volume));
+      localStorage.setItem(PLAYER_MUTED_KEY, String(muted));
+    } catch {
+      // Playback still works when storage is blocked.
+    }
+    controller.setVolume(getEffectiveVolume(volume, muted));
+  }, [controller, muted, volume]);
 
   useEffect(() => {
     if (!currentId) {
@@ -301,20 +335,18 @@ export default function AdminPlayer() {
     const existing = document.querySelector<HTMLScriptElement>(
       'script[src="https://w.soundcloud.com/player/api.js"]',
     );
+    const markReady = () => setSoundcloudApiReady(true);
     if (existing) {
-      existing.addEventListener("load", () => setSoundcloudApiReady(true), {
-        once: true,
-      });
-      return;
+      existing.addEventListener("load", markReady, { once: true });
+      return () => existing.removeEventListener("load", markReady);
     }
 
     const script = document.createElement("script");
     script.src = "https://w.soundcloud.com/player/api.js";
     script.async = true;
-    script.addEventListener("load", () => setSoundcloudApiReady(true), {
-      once: true,
-    });
+    script.addEventListener("load", markReady, { once: true });
     document.body.appendChild(script);
+    return () => script.removeEventListener("load", markReady);
   }, []);
 
   const broadcastClaim = useCallback(() => {
@@ -325,17 +357,11 @@ export default function AdminPlayer() {
   }, []);
 
   const pauseActive = useCallback(() => {
-    const current = currentSubmissionRef.current;
-    if (!current) return;
-
+    if (!currentSubmissionRef.current) return;
     pendingAutoplayRef.current = false;
-    if (current.provider === "dropbox") {
-      audioRef.current?.pause();
-    } else {
-      soundcloudWidgetRef.current?.pause();
-    }
+    controller.pause();
     setStatus("paused");
-  }, []);
+  }, [controller]);
   pauseActiveRef.current = pauseActive;
 
   useEffect(() => {
@@ -349,10 +375,9 @@ export default function AdminPlayer() {
         (statusRef.current === "playing" || statusRef.current === "loading")
       ) {
         pauseActiveRef.current();
-        setNotice("Paused because another XLNT player started on this computer.");
+        setNotice("Paused because another XLNT player started.");
       }
     };
-
     return () => {
       channel.close();
       broadcastRef.current = null;
@@ -389,21 +414,28 @@ export default function AdminPlayer() {
     playerUrl.searchParams.set("show_comments", "false");
     playerUrl.searchParams.set("show_reposts", "false");
     playerUrl.searchParams.set("show_teaser", "false");
-    playerUrl.searchParams.set("show_user", "true");
+    playerUrl.searchParams.set("show_user", "false");
     playerUrl.searchParams.set("single_active", "true");
-    playerUrl.searchParams.set("xlnt_load", String(loadTokenRef.current));
     return playerUrl.toString();
   }, []);
 
   const startTrack = useCallback(
     (track: PlayerSubmission, autoplay: boolean, seek = 0) => {
-      loadTokenRef.current += 1;
+      const isSameSource =
+        loadedTrackRef.current?.id === track.id &&
+        loadedTrackRef.current.url === track.trackUrl;
+      const generation = ++loadGenerationRef.current;
+      controller.activate(track.provider, generation);
       currentIdRef.current = track.id;
       currentSubmissionRef.current = track;
       pendingAutoplayRef.current = autoplay;
       pendingSeekRef.current = Math.max(0, seek);
-      loadedTrackRef.current = { id: track.id, url: track.trackUrl };
-      attemptsRef.current.set(track.id, attemptsRef.current.get(track.id) ?? 0);
+      loadedTrackRef.current = {
+        id: track.id,
+        url: track.trackUrl,
+        generation,
+      };
+      if (!isSameSource) attemptsRef.current.set(track.id, 0);
 
       setCurrentId(track.id);
       setStatus("loading");
@@ -412,28 +444,42 @@ export default function AdminPlayer() {
       setDuration(0);
       setMetadata(getFallbackMetadata(track));
 
-      audioRef.current?.pause();
-      soundcloudWidgetRef.current?.pause();
-
       if (track.provider === "dropbox") {
+        setSoundcloudSource(null);
         const playbackUrl = getDropboxPlaybackUrl(track.trackUrl);
         if (!playbackUrl) {
           handleSourceFailureRef.current("This Dropbox link is not playable.");
           return;
         }
-        setSoundcloudSrc(null);
-        setDropboxSrc(`${playbackUrl}${playbackUrl.includes("?") ? "&" : "?"}xlnt_load=${loadTokenRef.current}`);
+        const separator = playbackUrl.includes("?") ? "&" : "?";
+        controller.load(
+          "dropbox",
+          `${playbackUrl}${separator}xlnt_load=${generation}`,
+          generation,
+        );
         return;
       }
 
-      setDropboxSrc(null);
+      setDropboxSource(null);
       void buildSoundCloudUrl(track)
         .then((url) => {
-          if (currentIdRef.current !== track.id) return;
-          setSoundcloudSrc(url);
+          if (
+            currentIdRef.current !== track.id ||
+            !controller.isCurrent(generation)
+          ) {
+            return;
+          }
+          const playerUrl = new URL(url);
+          playerUrl.searchParams.set("xlnt_load", String(generation));
+          controller.load("soundcloud", playerUrl.toString(), generation);
         })
         .catch((loadError) => {
-          if (currentIdRef.current !== track.id) return;
+          if (
+            currentIdRef.current !== track.id ||
+            !controller.isCurrent(generation)
+          ) {
+            return;
+          }
           handleSourceFailureRef.current(
             loadError instanceof Error
               ? loadError.message
@@ -441,7 +487,7 @@ export default function AdminPlayer() {
           );
         });
     },
-    [buildSoundCloudUrl],
+    [buildSoundCloudUrl, controller],
   );
   startTrackRef.current = startTrack;
 
@@ -462,27 +508,29 @@ export default function AdminPlayer() {
           );
           return;
         }
-        setError("Playback continued, but the Reviewed badge did not save. Retry from the queue.");
+        setError("Playback continued, but Reviewed did not save.");
       }
     },
     [],
   );
 
-  const stopForQueueEnd = useCallback((message?: string) => {
-    pendingAutoplayRef.current = false;
-    setCurrentId(null);
-    currentIdRef.current = null;
-    currentSubmissionRef.current = null;
-    loadedTrackRef.current = null;
-    setPosition(0);
-    setDuration(0);
-    setStatus("caught-up");
-    setMetadata({
-      artist: "XLNT Feedback",
-      title: message ?? "All caught up",
-      artwork: null,
-    });
-  }, []);
+  const stopForQueueEnd = useCallback(
+    (message = "All caught up") => {
+      pendingAutoplayRef.current = false;
+      controller.clear();
+      setCurrentId(null);
+      currentIdRef.current = null;
+      currentSubmissionRef.current = null;
+      loadedTrackRef.current = null;
+      setSoundcloudSource(null);
+      setDropboxSource(null);
+      setPosition(0);
+      setDuration(0);
+      setStatus("caught-up");
+      setMetadata({ artist: "XLNT Feedback", title: message, artwork: null });
+    },
+    [controller],
+  );
 
   const advanceAfterCurrent = useCallback(
     (markReviewed: boolean) => {
@@ -490,6 +538,7 @@ export default function AdminPlayer() {
       if (!current) return;
 
       pauseActiveRef.current();
+      historyRef.current = appendPlaybackHistory(historyRef.current, current.id);
       let completed = completedRef.current;
       if (markReviewed) {
         completed = new Set(completedRef.current);
@@ -509,7 +558,7 @@ export default function AdminPlayer() {
       } else {
         stopForQueueEnd(
           failedRef.current.size > 0
-            ? `All playable tracks handled · ${failedRef.current.size} unavailable`
+            ? `${failedRef.current.size} unavailable`
             : "All caught up",
         );
       }
@@ -525,9 +574,11 @@ export default function AdminPlayer() {
   const handleSourceFailure = useCallback(
     (message: string) => {
       const current = currentSubmissionRef.current;
-      if (!current) return;
+      const currentLoad = loadedTrackRef.current;
+      if (!current || !currentLoad || !controller.isCurrent(currentLoad.generation)) {
+        return;
+      }
       const attempts = attemptsRef.current.get(current.id) ?? 0;
-
       if (attempts < 1) {
         attemptsRef.current.set(current.id, attempts + 1);
         setNotice(`Retrying ${getFallbackMetadata(current).title}…`);
@@ -535,25 +586,23 @@ export default function AdminPlayer() {
         return;
       }
 
-      pauseActiveRef.current();
+      pendingAutoplayRef.current = false;
+      controller.pause();
       const failed = new Set(failedRef.current);
       failed.add(current.id);
       failedRef.current = failed;
       setFailedIds(failed);
-      setError(`${message} Skipped without marking it Reviewed.`);
+      setError(`${message} Skipped without marking Reviewed.`);
 
       const next = findNextPlayable(
         submissionsRef.current,
         completedRef.current,
         failed,
       );
-      if (next) {
-        startTrackRef.current(next, true, 0);
-      } else {
-        stopForQueueEnd(`No more playable tracks · ${failed.size} unavailable`);
-      }
+      if (next) startTrackRef.current(next, true, 0);
+      else stopForQueueEnd(`${failed.size} unavailable`);
     },
-    [stopForQueueEnd],
+    [controller, stopForQueueEnd],
   );
   handleSourceFailureRef.current = handleSourceFailure;
 
@@ -583,74 +632,117 @@ export default function AdminPlayer() {
     }
 
     setStatus("loading");
-    if (current.provider === "dropbox") {
-      const audio = audioRef.current;
-      if (!audio) return;
-      void audio.play().catch((playError: DOMException) => {
+    const playResult = controller.play();
+    if (playResult instanceof Promise) {
+      void playResult.catch((playError: DOMException) => {
+        pendingAutoplayRef.current = false;
         setStatus("paused");
         setNotice(
           playError.name === "NotAllowedError"
-            ? "Your browser blocked automatic playback. Press Play to continue."
-            : "Dropbox could not resume. Press Play to retry.",
+            ? "Press Play to allow audio."
+            : "Playback could not resume. Press Play to retry.",
         );
       });
-    } else if (soundcloudWidgetRef.current) {
-      soundcloudWidgetRef.current.play();
     }
-  }, [broadcastClaim]);
+  }, [broadcastClaim, controller]);
 
   const togglePlayback = useCallback(() => {
     if (statusRef.current === "playing") pauseActiveRef.current();
     else playActive();
   }, [playActive]);
 
-  const replayTenSeconds = useCallback(() => {
+  const handlePrevious = useCallback(() => {
     const current = currentSubmissionRef.current;
-    if (!current) return;
-    const nextPosition = Math.max(0, positionRef.current - 10);
-    if (current.provider === "dropbox" && audioRef.current) {
-      audioRef.current.currentTime = nextPosition;
-    } else {
-      soundcloudWidgetRef.current?.seekTo(nextPosition * 1000);
+    if (current && shouldRestartCurrentTrack(positionRef.current)) {
+      pendingSeekRef.current = 0;
+      controller.seek(0);
+      positionRef.current = 0;
+      setPosition(0);
+      return;
     }
-    setPosition(nextPosition);
-  }, []);
+
+    const availableIds = new Set(submissionsRef.current.map((item) => item.id));
+    const previous = takePreviousTrack(historyRef.current, availableIds);
+    if (previous) {
+      historyRef.current = previous.history;
+      const previousSubmission = submissionsRef.current.find(
+        (item) => item.id === previous.trackId,
+      );
+      if (previousSubmission) {
+        const keepPlaying =
+          statusRef.current === "playing" || pendingAutoplayRef.current;
+        startTrackRef.current(previousSubmission, keepPlaying, 0);
+        return;
+      }
+    }
+
+    if (current) {
+      controller.seek(0);
+      positionRef.current = 0;
+      setPosition(0);
+    }
+  }, [controller]);
 
   const handleNext = useCallback(() => {
     if (currentSubmissionRef.current) advanceAfterCurrent(true);
   }, [advanceAfterCurrent]);
 
+  const handleSeek = useCallback(
+    (seconds: number) => {
+      if (!currentSubmissionRef.current || durationRef.current <= 0) return;
+      const nextPosition = Math.min(
+        durationRef.current,
+        Math.max(0, seconds),
+      );
+      pendingSeekRef.current = nextPosition;
+      positionRef.current = nextPosition;
+      setPosition(nextPosition);
+      controller.seek(nextPosition);
+      pendingSeekRef.current = 0;
+    },
+    [controller],
+  );
+
   const handleVolumeChange = useCallback((value: number) => {
-    setVolume(Math.min(100, Math.max(0, Math.round(value))));
+    const nextVolume = Math.min(100, Math.max(0, Math.round(value)));
+    volumeRef.current = nextVolume;
+    mutedRef.current = false;
+    setVolume(nextVolume);
     setMuted(false);
   }, []);
 
-  const toggleMute = useCallback(() => setMuted((value) => !value), []);
+  const toggleMute = useCallback(() => {
+    setMuted((value) => {
+      mutedRef.current = !value;
+      return !value;
+    });
+  }, []);
 
   useEffect(() => {
     const submissionsCollection = collection(db, "submissions");
     return onSnapshot(
       submissionsCollection,
       (snapshot) => {
-        const nextSubmissions: PlayerSubmission[] = snapshot.docs.flatMap((document) => {
-          const data = document.data();
-          const trackUrl = data.trackUrl ?? data.soundcloudLink;
-          if (typeof trackUrl !== "string" || !trackUrl) return [];
-
-          return [
-            {
-              id: document.id,
-              trackUrl,
-              provider: inferTrackProvider(trackUrl, data.provider),
-              trackTitle: data.trackTitle ?? null,
-              artistName: data.artistName ?? null,
-              order: data.order,
-              timestamp: data.timestamp ?? null,
-              reviewedAt: data.reviewedAt ?? null,
-              youtubeChannelTitle: data.youtubeChannelTitle ?? null,
-            },
-          ];
-        });
+        const nextSubmissions: PlayerSubmission[] = snapshot.docs.flatMap(
+          (document) => {
+            const data = document.data();
+            const trackUrl = data.trackUrl ?? data.soundcloudLink;
+            if (typeof trackUrl !== "string" || !trackUrl) return [];
+            return [
+              {
+                id: document.id,
+                trackUrl,
+                provider: inferTrackProvider(trackUrl, data.provider),
+                trackTitle: data.trackTitle ?? null,
+                artistName: data.artistName ?? null,
+                order: data.order,
+                timestamp: data.timestamp ?? null,
+                reviewedAt: data.reviewedAt ?? null,
+                youtubeChannelTitle: data.youtubeChannelTitle ?? null,
+              },
+            ];
+          },
+        );
         const sorted = sortPlayerQueue(nextSubmissions);
         submissionsRef.current = sorted;
         setSubmissions(sorted);
@@ -665,7 +757,7 @@ export default function AdminPlayer() {
               )
             : null;
           if (savedTrack) {
-            setNotice("Playback restored. Press Play when you are ready.");
+            setNotice("Playback restored.");
             startTrackRef.current(savedTrack, false, checkpoint?.position ?? 0);
           } else if (sorted.length === 0) {
             setMetadata({
@@ -699,88 +791,98 @@ export default function AdminPlayer() {
 
         currentSubmissionRef.current = updated;
         if (previous && previous.trackUrl !== updated.trackUrl) {
-          setNotice("The active submission changed. Restarting it from the beginning.");
+          setNotice("Track changed — restarting.");
           startTrackRef.current(updated, statusRef.current === "playing", 0);
         }
       },
       () => {
         setQueueLoaded(true);
-        setError("The live queue disconnected. Check your internet connection.");
+        setError("Live queue disconnected.");
       },
     );
   }, [stopForQueueEnd]);
 
   useEffect(() => {
     if (status !== "loading" || !currentId) return;
-    const timeout = window.setTimeout(
-      () =>
+    const currentLoad = loadedTrackRef.current;
+    if (!currentLoad) return;
+    const timeout = window.setTimeout(() => {
+      if (
+        controller.isCurrent(currentLoad.generation) &&
+        statusRef.current === "loading"
+      ) {
         handleSourceFailureRef.current(
           `${getFallbackMetadata(currentSubmissionRef.current!).title} did not become ready.`,
-        ),
-      LOAD_TIMEOUT_MS,
-    );
+        );
+      }
+    }, LOAD_TIMEOUT_MS);
     return () => window.clearTimeout(timeout);
-  }, [currentId, soundcloudSrc, dropboxSrc, status]);
+  }, [controller, currentId, dropboxSource, soundcloudSource, status]);
 
   useEffect(() => {
-    if (!soundcloudApiReady || !soundcloudSrc || !soundcloudIframeRef.current) return;
+    if (
+      !soundcloudApiReady ||
+      !soundcloudSource ||
+      !soundcloudIframeRef.current
+    ) {
+      return;
+    }
     const api = getSoundCloudApi();
     if (!api?.Widget) return;
 
     const widget = api.Widget(soundcloudIframeRef.current);
     soundcloudWidgetRef.current = widget;
-    const currentTrackId = currentIdRef.current;
+    const { generation } = soundcloudSource;
+    const trackId = currentIdRef.current;
+    const isCurrent = () =>
+      controller.isCurrent(generation) && currentIdRef.current === trackId;
 
     const ready = () => {
-      if (currentIdRef.current !== currentTrackId) return;
-      widget.setVolume(muted ? 0 : volume);
-      widget.getDuration((milliseconds) => setDuration(milliseconds / 1000));
+      if (!isCurrent()) return;
+      controller.setVolume(
+        getEffectiveVolume(volumeRef.current, mutedRef.current),
+      );
+      widget.getDuration((milliseconds) => {
+        if (isCurrent()) setDuration(milliseconds / 1000);
+      });
       widget.getCurrentSound((sound) => {
-        const submittedArtistName =
-          currentSubmissionRef.current?.id === currentTrackId
-            ? currentSubmissionRef.current.artistName?.trim()
-            : null;
+        if (!isCurrent()) return;
+        const submittedArtistName = currentSubmissionRef.current?.artistName?.trim();
         setMetadata((previous) => ({
-          artist:
-            submittedArtistName || sound.user?.username?.trim() || previous.artist,
+          artist: submittedArtistName || sound.user?.username?.trim() || previous.artist,
           title: sound.title?.trim() || previous.title,
           artwork: sound.artwork_url || previous.artwork,
         }));
       });
       if (pendingSeekRef.current > 0) {
         widget.seekTo(pendingSeekRef.current * 1000);
+        pendingSeekRef.current = 0;
       }
       if (pendingAutoplayRef.current) widget.play();
       else setStatus("paused");
     };
     const play = () => {
-      if (currentIdRef.current !== currentTrackId) return;
-      attemptsRef.current.set(currentTrackId ?? "", 0);
+      if (!isCurrent()) return;
+      pendingAutoplayRef.current = false;
       broadcastClaim();
       setStatus("playing");
       setError(null);
     };
     const pause = () => {
-      if (
-        currentIdRef.current === currentTrackId &&
-        statusRef.current !== "loading"
-      ) {
-        setStatus("paused");
-      }
+      if (isCurrent() && statusRef.current !== "loading") setStatus("paused");
     };
     const progress = (event?: SoundCloudProgress) => {
-      if (
-        currentIdRef.current === currentTrackId &&
-        typeof event?.currentPosition === "number"
-      ) {
-        setPosition(event.currentPosition / 1000);
+      if (isCurrent() && typeof event?.currentPosition === "number") {
+        const nextPosition = event.currentPosition / 1000;
+        positionRef.current = nextPosition;
+        setPosition(nextPosition);
       }
     };
     const finish = () => {
-      if (currentIdRef.current === currentTrackId) finishCurrentRef.current();
+      if (isCurrent()) finishCurrentRef.current();
     };
     const widgetError = () => {
-      if (currentIdRef.current === currentTrackId) {
+      if (isCurrent()) {
         handleSourceFailureRef.current("SoundCloud could not play this track.");
       }
     };
@@ -791,7 +893,6 @@ export default function AdminPlayer() {
     widget.bind("play_progress", progress);
     widget.bind("finish", finish);
     widget.bind("error", widgetError);
-
     return () => {
       for (const event of [
         "ready",
@@ -809,7 +910,7 @@ export default function AdminPlayer() {
       }
       if (soundcloudWidgetRef.current === widget) soundcloudWidgetRef.current = null;
     };
-  }, [broadcastClaim, muted, soundcloudApiReady, soundcloudSrc, volume]);
+  }, [broadcastClaim, controller, soundcloudApiReady, soundcloudSource]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
@@ -824,393 +925,324 @@ export default function AdminPlayer() {
     navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
     safeSetActionHandler("play", () => playActive());
     safeSetActionHandler("pause", () => pauseActiveRef.current());
+    safeSetActionHandler("previoustrack", () => handlePrevious());
     safeSetActionHandler("nexttrack", () => handleNext());
-    safeSetActionHandler("seekbackward", () => replayTenSeconds());
 
     return () => {
       safeSetActionHandler("play", null);
       safeSetActionHandler("pause", null);
+      safeSetActionHandler("previoustrack", null);
       safeSetActionHandler("nexttrack", null);
-      safeSetActionHandler("seekbackward", null);
     };
-  }, [handleNext, isPlaying, metadata, playActive, replayTenSeconds]);
+  }, [handleNext, handlePrevious, isPlaying, metadata, playActive]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, select, button, a")) return;
-
       if (event.code === "Space") {
         event.preventDefault();
         togglePlayback();
-      } else if (event.key.toLowerCase() === "r" || event.key === "ArrowLeft") {
+      } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        replayTenSeconds();
-      } else if (event.key.toLowerCase() === "n") {
+        handlePrevious();
+      } else if (event.key === "ArrowRight") {
         event.preventDefault();
         handleNext();
       } else if (event.key.toLowerCase() === "m") {
         event.preventDefault();
         toggleMute();
-      } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-        event.preventDefault();
-        handleVolumeChange(volume + (event.key === "ArrowUp" ? 5 : -5));
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleNext, handleVolumeChange, replayTenSeconds, toggleMute, togglePlayback, volume]);
+  }, [handleNext, handlePrevious, toggleMute, togglePlayback]);
 
-  const openPip = useCallback(async () => {
-    const api = getDocumentPipApi();
-    if (!api) return;
-
-    try {
-      const nextWindow = await api.requestWindow({ width: 420, height: 190 });
-      nextWindow.document.title = "XLNT Feedback Player";
-      document
-        .querySelectorAll('link[rel="stylesheet"], style')
-        .forEach((node) => nextWindow.document.head.appendChild(node.cloneNode(true)));
-      nextWindow.document.body.className = styles.pipBody;
-      nextWindow.addEventListener(
-        "pagehide",
-        () => setPipWindow((current) => (current === nextWindow ? null : current)),
-        { once: true },
-      );
-      setPipWindow(nextWindow);
-    } catch {
-      setError("The floating player could not open. Allow Picture-in-Picture and try again.");
-    }
-  }, []);
-
-  const closePip = useCallback(() => {
-    pipWindow?.close();
-    setPipWindow(null);
-  }, [pipWindow]);
-
-  const panel = (
-    <PlayerPanel
-      current={currentSubmission}
-      status={status}
-      metadata={metadata}
-      position={position}
-      duration={duration}
-      queuePosition={queuePosition}
-      queueTotal={sortedSubmissions.length}
-      hasNext={Boolean(currentSubmission || nextAvailable)}
-      hasNewTrack={status === "caught-up" && Boolean(nextAvailable)}
-      volume={volume}
-      muted={muted}
-      onTogglePlayback={togglePlayback}
-      onReplay={replayTenSeconds}
-      onNext={handleNext}
-      onMute={toggleMute}
-      onVolume={handleVolumeChange}
-      floating={Boolean(pipWindow)}
-    />
-  );
+  const canPlay = Boolean(currentSubmission || nextAvailable);
+  const canGoPrevious = Boolean(currentSubmission || historyRef.current.length);
 
   return (
     <main className={styles.pageShell}>
-      <div className={styles.ambientGlow} aria-hidden="true" />
-      <header className={styles.pageHeader}>
-        <div>
-          <p className={styles.eyebrow}>Admin playback</p>
-          <h1>XLNT Feedback Player</h1>
+      <article className={styles.playerPanel} aria-label="XLNT feedback player">
+        <div className={styles.trackHeader}>
+          <div className={styles.trackInfo}>
+            <p className={styles.artistName}>{metadata.artist}</p>
+            <h1 title={metadata.title}>{metadata.title}</h1>
+          </div>
+          {currentSubmission && (
+            <a
+              href={currentSubmission.trackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.providerLink}
+              title={`Open in ${currentSubmission.provider === "dropbox" ? "Dropbox" : "SoundCloud"}`}
+            >
+              {currentSubmission.provider === "dropbox" ? "Dropbox" : "SoundCloud"}
+              <ExternalIcon />
+            </a>
+          )}
         </div>
-        <div className={styles.headerActions}>
-          <Link href="/queue" className={styles.secondaryButton}>
-            Back to queue
-          </Link>
-          {pipWindow ? (
-            <button type="button" onClick={closePip} className={styles.floatButton}>
-              Return player
-            </button>
-          ) : (
+
+        <div className={styles.timeline}>
+          <input
+            type="range"
+            min="0"
+            max={duration > 0 ? duration : 0}
+            step="0.1"
+            value={duration > 0 ? Math.min(position, duration) : 0}
+            onChange={(event) => handleSeek(Number(event.target.value))}
+            disabled={!currentSubmission || duration <= 0}
+            aria-label="Track position"
+            className={styles.seekSlider}
+            style={{
+              "--progress": `${duration > 0 ? Math.min(100, (position / duration) * 100) : 0}%`,
+            } as React.CSSProperties}
+          />
+          <div className={styles.timeLabels}>
+            <span>{formatTime(position)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
+        </div>
+
+        <div className={styles.controlRow}>
+          <div className={styles.transportControls}>
             <button
               type="button"
-              onClick={openPip}
-              disabled={!pipSupported}
-              className={styles.floatButton}
+              onClick={handlePrevious}
+              disabled={!canGoPrevious}
+              className={styles.iconButton}
+              aria-label="Previous track or restart"
+              title="Previous or restart"
             >
-              Float player
+              <PreviousIcon />
+            </button>
+            <button
+              type="button"
+              onClick={togglePlayback}
+              disabled={!canPlay}
+              className={styles.playButton}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {status === "loading" ? (
+                <span className={styles.spinner} />
+              ) : isPlaying ? (
+                <PauseIcon />
+              ) : (
+                <PlayIcon />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!currentSubmission}
+              className={styles.iconButton}
+              aria-label="Mark reviewed and play next"
+              title="Mark Reviewed and play next"
+            >
+              <NextIcon />
+            </button>
+          </div>
+
+          <div className={styles.volumeControl}>
+            <button
+              type="button"
+              onClick={toggleMute}
+              className={styles.volumeButton}
+              aria-label={muted ? "Unmute" : "Mute"}
+              title={muted ? "Unmute" : "Mute"}
+            >
+              {muted || volume === 0 ? <MutedIcon /> : <VolumeIcon />}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={muted ? 0 : volume}
+              onChange={(event) => handleVolumeChange(Number(event.target.value))}
+              aria-label="Volume"
+              className={styles.volumeSlider}
+              style={{
+                "--volume": `${muted ? 0 : volume}%`,
+              } as React.CSSProperties}
+            />
+          </div>
+        </div>
+
+        <div className={styles.messageArea} aria-live="polite">
+          {!queueLoaded && <span>Connecting…</span>}
+          {notice && (
+            <button type="button" onClick={() => setNotice(null)}>
+              {notice}
+            </button>
+          )}
+          {error && (
+            <button
+              type="button"
+              className={styles.errorMessage}
+              onClick={() => setError(null)}
+            >
+              {error}
             </button>
           )}
         </div>
-      </header>
-
-      <section className={styles.playerStage} aria-label="Admin queue player">
-        {pipWindow ? (
-          <div className={styles.floatingPlaceholder}>
-            <span className={styles.liveOrb} />
-            <strong>Player is floating</strong>
-            <p>Audio continues here. Close the floating window to return the controls.</p>
-            <button type="button" onClick={closePip} className={styles.secondaryButton}>
-              Return controls
-            </button>
-          </div>
-        ) : (
-          panel
-        )}
-      </section>
-
-      <div className={styles.messageStack} aria-live="polite">
-        {!queueLoaded && <p className={styles.notice}>Connecting to the live queue…</p>}
-        {notice && (
-          <button type="button" className={styles.notice} onClick={() => setNotice(null)}>
-            {notice}
-          </button>
-        )}
-        {error && (
-          <button type="button" className={styles.error} onClick={() => setError(null)}>
-            {error}
-          </button>
-        )}
-        {!pipSupported && (
-          <p className={styles.browserNote}>
-            This player works normally here. Use current Chrome or Edge for an always-on-top
-            floating window.
-          </p>
-        )}
-      </div>
-
-      <footer className={styles.shortcutBar}>
-        <span><kbd>Space</kbd> Play / pause</span>
-        <span><kbd>R</kbd> Replay 10s</span>
-        <span><kbd>N</kbd> Next</span>
-        <span><kbd>M</kbd> Mute</span>
-      </footer>
+      </article>
 
       <div className={styles.mediaDock} aria-hidden="true">
-        <audio
-          ref={audioRef}
-          src={dropboxSrc ?? undefined}
-          preload="auto"
-          onLoadedMetadata={(event) => {
-            const audio = event.currentTarget;
-            setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-            if (pendingSeekRef.current > 0) {
-              audio.currentTime = Math.min(pendingSeekRef.current, audio.duration || pendingSeekRef.current);
-            }
-            audio.volume = (muted ? 0 : volume) / 100;
-            if (pendingAutoplayRef.current) {
-              void audio.play().catch((playError: DOMException) => {
-                setStatus("paused");
-                setNotice(
-                  playError.name === "NotAllowedError"
-                    ? "Your browser blocked automatic playback. Press Play to continue."
-                    : "Dropbox could not start. Press Play to retry.",
+        {dropboxSource && (
+          <audio
+            key={dropboxSource.generation}
+            ref={audioRef}
+            src={dropboxSource.url}
+            preload="auto"
+            onLoadedMetadata={(event) => {
+              const { generation } = dropboxSource;
+              if (!controller.isCurrent(generation)) return;
+              const audio = event.currentTarget;
+              const nextDuration = Number.isFinite(audio.duration) ? audio.duration : 0;
+              durationRef.current = nextDuration;
+              setDuration(nextDuration);
+              audio.volume =
+                getEffectiveVolume(volumeRef.current, mutedRef.current) / 100;
+              if (pendingSeekRef.current > 0) {
+                const nextPosition = Math.min(
+                  pendingSeekRef.current,
+                  audio.duration || pendingSeekRef.current,
                 );
-              });
-            } else {
-              setStatus("paused");
-            }
-          }}
-          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
-          onDurationChange={(event) => {
-            const nextDuration = event.currentTarget.duration;
-            if (Number.isFinite(nextDuration)) setDuration(nextDuration);
-          }}
-          onPlay={() => {
-            attemptsRef.current.set(currentIdRef.current ?? "", 0);
-            broadcastClaim();
-            setStatus("playing");
-            setError(null);
-          }}
-          onPause={() => {
-            if (!audioRef.current?.ended && statusRef.current !== "loading") {
-              setStatus("paused");
-            }
-          }}
-          onEnded={() => finishCurrentRef.current()}
-          onError={() => {
-            if (dropboxSrc) {
-              handleSourceFailureRef.current("Dropbox could not play this audio file.");
-            }
-          }}
-        />
-        {soundcloudSrc && (
+                audio.currentTime = nextPosition;
+                pendingSeekRef.current = 0;
+              }
+              if (pendingAutoplayRef.current) {
+                const playResult = controller.play();
+                if (playResult instanceof Promise) {
+                  void playResult.catch((playError: DOMException) => {
+                    if (!controller.isCurrent(generation)) return;
+                    pendingAutoplayRef.current = false;
+                    setStatus("paused");
+                    setNotice(
+                      playError.name === "NotAllowedError"
+                        ? "Press Play to allow audio."
+                        : "Playback could not start.",
+                    );
+                  });
+                }
+              } else {
+                setStatus("paused");
+              }
+            }}
+            onTimeUpdate={(event) => {
+              if (!controller.isCurrent(dropboxSource.generation)) return;
+              const nextPosition = event.currentTarget.currentTime;
+              positionRef.current = nextPosition;
+              setPosition(nextPosition);
+            }}
+            onDurationChange={(event) => {
+              if (!controller.isCurrent(dropboxSource.generation)) return;
+              const nextDuration = event.currentTarget.duration;
+              if (Number.isFinite(nextDuration)) {
+                durationRef.current = nextDuration;
+                setDuration(nextDuration);
+              }
+            }}
+            onPlay={() => {
+              if (!controller.isCurrent(dropboxSource.generation)) return;
+              pendingAutoplayRef.current = false;
+              broadcastClaim();
+              setStatus("playing");
+              setError(null);
+            }}
+            onPause={() => {
+              if (
+                controller.isCurrent(dropboxSource.generation) &&
+                !audioRef.current?.ended &&
+                statusRef.current !== "loading"
+              ) {
+                setStatus("paused");
+              }
+            }}
+            onEnded={() => {
+              if (controller.isCurrent(dropboxSource.generation)) {
+                finishCurrentRef.current();
+              }
+            }}
+            onError={() => {
+              if (controller.isCurrent(dropboxSource.generation)) {
+                handleSourceFailureRef.current(
+                  "Dropbox could not play this audio file.",
+                );
+              }
+            }}
+          />
+        )}
+        {soundcloudSource && (
           <iframe
+            key={soundcloudSource.generation}
             ref={soundcloudIframeRef}
             title="SoundCloud playback engine"
-            src={soundcloudSrc}
+            src={soundcloudSource.url}
             allow="autoplay"
             tabIndex={-1}
           />
         )}
       </div>
-
-      {pipWindow && createPortal(panel, pipWindow.document.body)}
     </main>
   );
 }
 
-function PlayerPanel({
-  current,
-  status,
-  metadata,
-  position,
-  duration,
-  queuePosition,
-  queueTotal,
-  hasNext,
-  hasNewTrack,
-  volume,
-  muted,
-  onTogglePlayback,
-  onReplay,
-  onNext,
-  onMute,
-  onVolume,
-  floating,
-}: {
-  current: PlayerSubmission | null;
-  status: PlaybackStatus;
-  metadata: { artist: string; title: string; artwork: string | null };
-  position: number;
-  duration: number;
-  queuePosition: { current: number; total: number } | null;
-  queueTotal: number;
-  hasNext: boolean;
-  hasNewTrack: boolean;
-  volume: number;
-  muted: boolean;
-  onTogglePlayback: () => void;
-  onReplay: () => void;
-  onNext: () => void;
-  onMute: () => void;
-  onVolume: (volume: number) => void;
-  floating: boolean;
-}) {
-  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
-  const statusLabel =
-    status === "playing"
-      ? "Live"
-      : status === "loading"
-        ? "Loading"
-        : hasNewTrack
-          ? "New track ready"
-          : status === "caught-up"
-            ? "Caught up"
-            : status === "error"
-              ? "Needs attention"
-              : current
-                ? "Paused"
-                : queueTotal
-                  ? "Ready"
-                  : "Queue empty";
-  const canPlay = Boolean(current || hasNext);
+type IconProps = { className?: string };
 
+function PreviousIcon(props: IconProps) {
   return (
-    <article className={`${styles.playerPanel} ${floating ? styles.floatingPanel : ""}`}>
-      <div className={styles.panelGrid} aria-hidden="true" />
-      <header className={styles.panelHeader}>
-        <div className={styles.brandLockup}>
-          <span className={styles.brandMark}>X</span>
-          <span>XLNT Feedback</span>
-        </div>
-        <div className={styles.queueStatus}>
-          <span>
-            {queuePosition
-              ? `${queuePosition.current} of ${queuePosition.total}`
-              : `${queueTotal} queued`}
-          </span>
-          <span className={`${styles.statusPill} ${status === "playing" ? styles.statusLive : ""}`}>
-            <span className={styles.statusDot} />
-            {statusLabel}
-          </span>
-        </div>
-      </header>
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="M6.5 5v14M18 6.5 9.5 12l8.5 5.5v-11Z" />
+    </svg>
+  );
+}
 
-      <div className={styles.trackInfo}>
-        <p className={styles.artistName}>{metadata.artist}</p>
-        <div className={styles.titleRow}>
-          <h2 title={metadata.title}>{metadata.title}</h2>
-          {current && (
-            <a
-              href={current.trackUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.providerLink}
-              title={`Open in ${current.provider === "dropbox" ? "Dropbox" : "SoundCloud"}`}
-            >
-              {current.provider === "dropbox" ? "Dropbox" : "SoundCloud"} ↗
-            </a>
-          )}
-        </div>
-      </div>
+function NextIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="M17.5 5v14M6 6.5l8.5 5.5L6 17.5v-11Z" />
+    </svg>
+  );
+}
 
-      <div className={styles.timeline}>
-        <span>{formatTime(position)}</span>
-        <div className={styles.progressTrack} aria-label="Track progress">
-          <span className={styles.progressFill} style={{ width: `${progress}%` }} />
-        </div>
-        <span>{formatTime(duration)}</span>
-      </div>
+function PlayIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="m8 5 11 7-11 7V5Z" />
+    </svg>
+  );
+}
 
-      <div className={styles.transportRow}>
-        <button
-          type="button"
-          onClick={onReplay}
-          disabled={!current}
-          className={styles.transportButton}
-          aria-label="Replay 10 seconds"
-          title="Replay 10 seconds (R)"
-        >
-          <span className={styles.replayIcon}>↶</span>
-          <span>10</span>
-        </button>
+function PauseIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="M8 5v14M16 5v14" />
+    </svg>
+  );
+}
 
-        <button
-          type="button"
-          onClick={onTogglePlayback}
-          disabled={!canPlay}
-          className={`${styles.playButton} ${status === "playing" ? styles.playingButton : ""}`}
-          aria-label={status === "playing" ? "Pause" : "Play"}
-        >
-          {status === "loading" ? (
-            <span className={styles.spinner} />
-          ) : status === "playing" ? (
-            <span className={styles.pauseIcon}><i /><i /></span>
-          ) : (
-            <span className={styles.playIcon} />
-          )}
-          <span>{status === "playing" ? "Pause" : current ? "Resume" : "Start"}</span>
-        </button>
+function VolumeIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="M5 10v4h4l5 4V6l-5 4H5ZM17 9a4 4 0 0 1 0 6" />
+    </svg>
+  );
+}
 
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={!current}
-          className={styles.nextButton}
-          aria-label="Mark reviewed and play next track"
-          title="Mark Reviewed and play next (N)"
-        >
-          Next <span>›</span>
-        </button>
+function MutedIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="M5 10v4h4l5 4V6l-5 4H5ZM17 10l4 4M21 10l-4 4" />
+    </svg>
+  );
+}
 
-        <div className={styles.volumeControl}>
-          <button
-            type="button"
-            onClick={onMute}
-            className={styles.muteButton}
-            aria-label={muted ? "Unmute" : "Mute"}
-            title={muted ? "Unmute (M)" : "Mute (M)"}
-          >
-            {muted || volume === 0 ? "×" : volume < 45 ? "◖" : "◕"}
-          </button>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={muted ? 0 : volume}
-            onChange={(event) => onVolume(Number(event.target.value))}
-            aria-label="Volume"
-            className={styles.volumeSlider}
-            style={{ "--volume": `${muted ? 0 : volume}%` } as React.CSSProperties}
-          />
-        </div>
-      </div>
-    </article>
+function ExternalIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path d="M14 5h5v5M19 5l-8 8M18 13v5H6V6h5" />
+    </svg>
   );
 }
