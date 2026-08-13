@@ -1231,7 +1231,7 @@ export default function QueuePage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="fixed bottom-3 left-3 z-10 flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 sm:bottom-4 sm:left-4 sm:max-w-none"
+          className="fixed bottom-3 left-3 z-10 flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-1.5 sm:bottom-4 sm:left-4 sm:max-w-none"
         >
           <button
             type="button"
@@ -1239,15 +1239,15 @@ export default function QueuePage() {
             disabled={!multipleSubmissionsLoaded || multipleSubmissionsSaving}
             aria-pressed={allowMultipleSubmissions}
             aria-label={`${allowMultipleSubmissions ? "Disable" : "Enable"} multiple submissions`}
-            className={`group relative min-h-11 overflow-hidden rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:px-5 sm:py-2 sm:text-xs sm:tracking-[0.2em] ${
+            className={`group relative min-h-11 overflow-hidden rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:px-3.5 sm:py-1.5 sm:text-[10px] sm:tracking-[0.14em] ${
               allowMultipleSubmissions
                 ? "border-emerald-400/55 bg-emerald-400/15 text-emerald-300 hover:border-emerald-300 hover:text-white"
                 : "border-white/20 bg-white/5 text-white/55 hover:border-[var(--accent-cyan)]/55 hover:text-white"
             }`}
           >
-            <span className="relative z-10 inline-flex items-center gap-2 whitespace-nowrap">
+            <span className="relative z-10 inline-flex items-center gap-1.5 whitespace-nowrap">
               <span
-                className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
                   allowMultipleSubmissions
                     ? "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.75)]"
                     : "bg-white/35"
@@ -1255,20 +1255,23 @@ export default function QueuePage() {
               />
               {multipleSubmissionsSaving
                 ? "Saving..."
-                : `Multiple: ${allowMultipleSubmissions ? "On" : "Off"}`}
+                : `Multi ${allowMultipleSubmissions ? "On" : "Off"}`}
             </span>
           </button>
           <button
+            type="button"
             onClick={handleResetReviewed}
             disabled={resetReviewedLoading}
-            className="group relative overflow-visible rounded-full border border-[var(--accent-cyan)]/45 bg-[var(--accent-cyan)]/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:px-5 sm:py-2 sm:text-xs sm:tracking-[0.2em]"
+            aria-label="Reset all reviewed tracks"
+            title="Reset all reviewed tracks"
+            className="group relative min-h-11 overflow-visible rounded-full border border-[var(--accent-cyan)]/45 bg-[var(--accent-cyan)]/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:px-3.5 sm:py-1.5 sm:text-[10px] sm:tracking-[0.14em]"
           >
             <span className="relative z-10 whitespace-nowrap">
               {resetReviewedLoading
                 ? "Resetting..."
                 : resetReviewedConfirm
-                  ? "Confirm Reset"
-                  : "Reset Reviewed"}
+                  ? "Confirm"
+                  : "Reset"}
             </span>
             {resetReviewedConfirm && !resetReviewedLoading && (
               <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.15em] text-[var(--accent-cyan)]">
@@ -1277,9 +1280,12 @@ export default function QueuePage() {
             )}
           </button>
           <button
+            type="button"
             onClick={handleClearQueue}
             disabled={clearLoading}
-            className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,170,0.5)] disabled:cursor-not-allowed disabled:opacity-40 backdrop-blur-md"
+            aria-label="Clear the entire queue"
+            title="Clear the entire queue"
+            className="group relative min-h-11 overflow-hidden rounded-full bg-gradient-to-r from-red-500 via-[var(--accent-magenta)] to-purple-600 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,170,0.5)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:px-3.5 sm:py-1.5 sm:text-[10px] sm:tracking-[0.14em] backdrop-blur-md"
           >
             <span className="relative z-10 whitespace-nowrap">
               {clearLoading
@@ -1288,7 +1294,7 @@ export default function QueuePage() {
                 ? "Are you sure?"
                 : clearConfirm
                 ? "⚠ Confirm"
-                : "Clear Queue"}
+                : "Clear"}
             </span>
             {(clearConfirm || clearConfirmSecond) && !clearLoading && (
               <motion.span
