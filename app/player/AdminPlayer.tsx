@@ -736,8 +736,13 @@ export default function AdminPlayer() {
       widget.setVolume(muted ? 0 : volume);
       widget.getDuration((milliseconds) => setDuration(milliseconds / 1000));
       widget.getCurrentSound((sound) => {
+        const submittedArtistName =
+          currentSubmissionRef.current?.id === currentTrackId
+            ? currentSubmissionRef.current.artistName?.trim()
+            : null;
         setMetadata((previous) => ({
-          artist: sound.user?.username?.trim() || previous.artist,
+          artist:
+            submittedArtistName || sound.user?.username?.trim() || previous.artist,
           title: sound.title?.trim() || previous.title,
           artwork: sound.artwork_url || previous.artwork,
         }));

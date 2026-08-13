@@ -126,16 +126,16 @@ export async function PATCH(
     const normalizedArtistName =
       typeof artistName === "string" ? artistName.trim() : "";
 
-    if (validatedTrack.provider === "dropbox" && !normalizedArtistName) {
+    if (!normalizedArtistName) {
       return NextResponse.json(
-        { success: false, error: "Artist name is required for Dropbox submissions." },
+        { success: false, error: "Name or artist name is required." },
         { status: 400 },
       );
     }
 
     if (normalizedArtistName.length > 120) {
       return NextResponse.json(
-        { success: false, error: "Artist name must be 120 characters or fewer." },
+        { success: false, error: "Name or artist name must be 120 characters or fewer." },
         { status: 400 },
       );
     }
@@ -150,8 +150,7 @@ export async function PATCH(
       trackUrl: validatedTrack.trackUrl,
       provider: validatedTrack.provider,
       trackTitle: validatedTrack.trackTitle,
-      artistName:
-        validatedTrack.provider === "dropbox" ? normalizedArtistName : null,
+      artistName: normalizedArtistName,
       soundcloudLink: FieldValue.delete(),
       instagramHandle: normalizeHandle(instagramHandle),
       tiktokHandle: normalizeHandle(tiktokHandle),

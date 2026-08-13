@@ -1474,6 +1474,13 @@ const QueueItem = ({
 
   const instagramLink = buildSocialLink(submission.instagramHandle, "instagram");
   const tiktokLink = buildSocialLink(submission.tiktokHandle, "tiktok");
+  const submittedArtistName = submission.artistName?.trim() || null;
+  const accountName =
+    submission.youtubeChannelTitle?.trim() || submission.email?.trim() || null;
+  const displayName = submittedArtistName || accountName || "Unknown artist";
+  const showAccountName =
+    Boolean(submittedArtistName && accountName) &&
+    submittedArtistName?.toLocaleLowerCase() !== accountName?.toLocaleLowerCase();
   const socialLinks = [
     instagramLink && {
       label: "Instagram",
@@ -1553,26 +1560,29 @@ const QueueItem = ({
               >
                 {position}
               </motion.div>
-            {/* User Name Display - YouTube Channel or Email */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
-              {submission.youtubeChannelTitle ? (
-                <span className="text-xs sm:text-sm font-semibold text-white/70 flex items-center gap-1.5 sm:gap-2 truncate">
-                  {submission.youtubeChannelAvatarUrl && (
-                    <Image
-                      src={submission.youtubeChannelAvatarUrl}
-                      alt={submission.youtubeChannelTitle}
-                      width={20}
-                      height={20}
-                      className="h-5 w-5 sm:h-6 sm:w-6 rounded-full border border-white/20 object-cover flex-shrink-0"
-                    />
+            {/* Submitted artist identity, with account identity retained for context */}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                {submission.youtubeChannelAvatarUrl && (
+                  <Image
+                    src={submission.youtubeChannelAvatarUrl}
+                    alt={displayName}
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 flex-shrink-0 rounded-full border border-white/20 object-cover"
+                  />
+                )}
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate text-xs font-bold text-white sm:text-sm">
+                    {displayName}
+                  </p>
+                  {showAccountName && (
+                    <p className="truncate text-[9px] font-medium text-white/40 sm:text-[10px]">
+                      Submitted by {accountName}
+                    </p>
                   )}
-                  <span className="truncate">{submission.youtubeChannelTitle}</span>
-                </span>
-              ) : submission.email ? (
-                <span className="text-xs sm:text-sm font-semibold text-white/70 truncate">
-                  {submission.email}
-                </span>
-              ) : null}
+                </div>
+              </div>
               {/* Social Links Inline */}
               {socialLinks.map((link) => (
                 <motion.a
@@ -1692,26 +1702,26 @@ const QueueItem = ({
                 </p>
               )}
             </div>
-            {editTrackValidation?.valid && editTrackValidation.provider === "dropbox" && (
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-                  Artist Name:
-                </label>
-                <input
-                  type="text"
-                  value={editArtistName}
-                  onChange={(event) => setEditArtistName(event.target.value)}
-                  maxLength={120}
-                  className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 focus:bg-black/60"
-                  placeholder="Name to show in the stream player"
-                />
-                {!editArtistName.trim() && (
-                  <p className="text-xs font-semibold text-red-400">
-                    Artist name is required for Dropbox submissions.
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+                Name / Artist Name:
+              </label>
+              <input
+                type="text"
+                value={editArtistName}
+                onChange={(event) => setEditArtistName(event.target.value)}
+                maxLength={120}
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 focus:bg-black/60"
+                placeholder="How should we introduce you on stream?"
+              />
+              <p className={`text-xs font-semibold ${
+                editArtistName.trim() ? "text-white/40" : "text-red-400"
+              }`}>
+                {editArtistName.trim()
+                  ? "Shown in the queue and admin mini player."
+                  : "Name or artist name is required."}
+              </p>
+            </div>
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
                 Instagram (optional):
@@ -1745,7 +1755,7 @@ const QueueItem = ({
                 disabled={
                   editLoading ||
                   !editTrackValidation?.valid ||
-                  (editTrackValidation.provider === "dropbox" && !editArtistName.trim())
+                  !editArtistName.trim()
                 }
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
