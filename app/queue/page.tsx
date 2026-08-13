@@ -16,6 +16,7 @@ import {
   isPrivateSoundCloudTrack,
   isShortenedSoundCloudLink,
   parseTrackLink,
+  resolveTrackArtistName,
   type TrackProvider,
 } from "@/lib/track-links";
 import { db } from "../firebase/firebase";
@@ -235,6 +236,9 @@ declare global {
         unbind: (event: string, listener: () => void) => void;
         setVolume: (volume: number) => void;
         getVolume: (callback: (volume: number) => void) => void;
+        getCurrentSound?: (callback: (sound: {
+          user?: { username?: string };
+        } | null) => void) => void;
         pause: () => void;
       };
     };
@@ -260,6 +264,9 @@ export default function QueuePage() {
   const [resetReviewedConfirm, setResetReviewedConfirm] = useState(false);
   const [resetReviewedLoading, setResetReviewedLoading] = useState(false);
   const resetReviewedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [allowMultipleSubmissions, setAllowMultipleSubmissions] = useState(false);
+  const [multipleSubmissionsLoaded, setMultipleSubmissionsLoaded] = useState(false);
+  const [multipleSubmissionsSaving, setMultipleSubmissionsSaving] = useState(false);
   const prevPlayingIdRef = useRef<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTrackUrl, setEditTrackUrl] = useState("");
@@ -280,6 +287,91 @@ export default function QueuePage() {
   const isAdmin = session?.user?.isAdmin ?? false;
   const userEmail = session?.user?.email?.toLowerCase();
   const userChannelId = session?.user?.youtubeChannelId?.toLowerCase();
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setMultipleSubmissionsLoaded(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadSubmissionSettings = async () => {
+      try {
+        const response = await fetch("/api/submit/status", {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Failed to load submission settings.");
+        const data = (await response.json()) as {
+          allowMultipleSubmissions?: boolean;
+        };
+        if (!cancelled) {
+          setAllowMultipleSubmissions(data.allowMultipleSubmissions === true);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setActionError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load submission settings.",
+          );
+        }
+      } finally {
+        if (!cancelled) setMultipleSubmissionsLoaded(true);
+      }
+    };
+
+    void loadSubmissionSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
+  const handleMultipleSubmissionsToggle = useCallback(async () => {
+    if (!isAdmin || !multipleSubmissionsLoaded || multipleSubmissionsSaving) {
+      return;
+    }
+
+    const nextValue = !allowMultipleSubmissions;
+    setMultipleSubmissionsSaving(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      const response = await fetch("/api/submit/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowMultipleSubmissions: nextValue }),
+      });
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        allowMultipleSubmissions?: boolean;
+      };
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to update submission settings.");
+      }
+
+      setAllowMultipleSubmissions(data.allowMultipleSubmissions === true);
+      setActionNotice(
+        data.allowMultipleSubmissions
+          ? "Multiple submissions enabled. Fair queue rounds are active."
+          : "Multiple submissions disabled. Existing tracks were kept.",
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update submission settings.",
+      );
+    } finally {
+      setMultipleSubmissionsSaving(false);
+    }
+  }, [
+    allowMultipleSubmissions,
+    isAdmin,
+    multipleSubmissionsLoaded,
+    multipleSubmissionsSaving,
+  ]);
 
   const openPopupPlayer = useCallback(() => {
     const currentScreen = window.screen as Screen & {
@@ -1139,8 +1231,33 @@ export default function QueuePage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 z-10 flex items-center gap-2"
+          className="fixed bottom-3 left-3 z-10 flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 sm:bottom-4 sm:left-4 sm:max-w-none"
         >
+          <button
+            type="button"
+            onClick={handleMultipleSubmissionsToggle}
+            disabled={!multipleSubmissionsLoaded || multipleSubmissionsSaving}
+            aria-pressed={allowMultipleSubmissions}
+            aria-label={`${allowMultipleSubmissions ? "Disable" : "Enable"} multiple submissions`}
+            className={`group relative min-h-11 overflow-hidden rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:px-5 sm:py-2 sm:text-xs sm:tracking-[0.2em] ${
+              allowMultipleSubmissions
+                ? "border-emerald-400/55 bg-emerald-400/15 text-emerald-300 hover:border-emerald-300 hover:text-white"
+                : "border-white/20 bg-white/5 text-white/55 hover:border-[var(--accent-cyan)]/55 hover:text-white"
+            }`}
+          >
+            <span className="relative z-10 inline-flex items-center gap-2 whitespace-nowrap">
+              <span
+                className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                  allowMultipleSubmissions
+                    ? "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.75)]"
+                    : "bg-white/35"
+                }`}
+              />
+              {multipleSubmissionsSaving
+                ? "Saving..."
+                : `Multiple: ${allowMultipleSubmissions ? "On" : "Off"}`}
+            </span>
+          </button>
           <button
             onClick={handleResetReviewed}
             disabled={resetReviewedLoading}
@@ -1464,6 +1581,7 @@ const QueueItem = ({
   const [resolvedSoundcloudUrl, setResolvedSoundcloudUrl] = useState<string | null>(null);
   const [resolvedPlayerUrl, setResolvedPlayerUrl] = useState<string | null>(null);
   const [resolvedPrivateStatus, setResolvedPrivateStatus] = useState<boolean | null>(null);
+  const [soundcloudArtistName, setSoundcloudArtistName] = useState<string | null>(null);
 
   const isSoundCloud = submission.provider === "soundcloud";
   const dropboxPlaybackUrl =
@@ -1478,6 +1596,10 @@ const QueueItem = ({
     isSoundCloud &&
     (isShortened || isPrivateSoundCloudTrack(submission.trackUrl));
   const playableSoundcloudUrl = resolvedSoundcloudUrl ?? submission.trackUrl;
+  const resolvedTrackInfo = getTrackDisplay(
+    playableSoundcloudUrl,
+    submission.provider,
+  );
   const isPrivate =
     isSoundCloud &&
     (resolvedPrivateStatus ?? isPrivateSoundCloudTrack(playableSoundcloudUrl));
@@ -1510,6 +1632,7 @@ const QueueItem = ({
     setResolvedSoundcloudUrl(null);
     setResolvedPlayerUrl(null);
     setResolvedPrivateStatus(null);
+    setSoundcloudArtistName(null);
   }, [submission.trackUrl]);
 
   useEffect(() => {
@@ -1588,6 +1711,10 @@ const QueueItem = ({
       const handleReadyEvent = () => {
         const effectiveVolume = isMuted ? 0 : volume;
         widget.setVolume(effectiveVolume);
+        widget.getCurrentSound?.((sound) => {
+          const uploaderName = sound?.user?.username?.trim();
+          if (uploaderName) setSoundcloudArtistName(uploaderName);
+        });
       };
       widget.bind("ready", handleReadyEvent);
 
@@ -1661,7 +1788,11 @@ const QueueItem = ({
   const instagramLink = buildSocialLink(submission.instagramHandle, "instagram");
   const tiktokLink = buildSocialLink(submission.tiktokHandle, "tiktok");
   const submittedArtistName = submission.artistName?.trim() || null;
-  const displayName = submittedArtistName || "Unknown artist";
+  const displayName = resolveTrackArtistName(
+    submittedArtistName,
+    soundcloudArtistName,
+    isSoundCloud ? resolvedTrackInfo.artist : null,
+  );
   const socialLinks = [
     instagramLink && {
       label: "Instagram",

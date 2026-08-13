@@ -1,12 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { FieldValue } from "firebase-admin/firestore";
 import { authOptions } from "@/lib/auth";
+import {
+  allocateFairQueueOrder,
+  getNextSubmissionRound,
+  getQueueOrder,
+  getSubmissionRound,
+  sortByQueueOrder,
+} from "@/lib/fair-queue";
 import {
   TrackValidationError,
   validateTrackSubmission,
 } from "@/lib/track-validation";
-import { FieldValue } from "firebase-admin/firestore";
-import { db } from "../../firebase/firebaseAdmin"; // Admin SDK import
+import { db } from "../../firebase/firebaseAdmin";
+
+type ExistingSubmissionSummary = {
+  id: string;
+  trackUrl: string | null;
+  trackTitle: string | null;
+  artistName: string | null;
+};
+
+const normalizeHandle = (handle?: string | null) => {
+  if (typeof handle !== "string") return null;
+  const trimmed = handle.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,23 +35,21 @@ export async function POST(req: NextRequest) {
     if (!session) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
-    // Check killswitch - prevent submissions when feedback is not active
     const configRef = db.collection("config").doc("submissions");
-    const configDoc = await configRef.get();
-    const config = configDoc.data();
-
-    if (config?.submissionEnabled === false) {
+    const initialConfig = (await configRef.get()).data();
+    if (initialConfig?.submissionEnabled === false) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           submissionsDisabled: true,
-          error: "Submissions are currently disabled. Feedback sessions are not active at this time." 
+          error:
+            "Submissions are currently disabled. Feedback sessions are not active at this time.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -42,6 +60,7 @@ export async function POST(req: NextRequest) {
       instagramHandle,
       tiktokHandle,
       replaceExisting,
+      replaceSubmissionId,
     }: {
       trackUrl?: string;
       soundcloudLink?: string;
@@ -49,6 +68,7 @@ export async function POST(req: NextRequest) {
       instagramHandle?: string;
       tiktokHandle?: string;
       replaceExisting?: boolean;
+      replaceSubmissionId?: string;
     } = await req.json();
 
     const submittedTrackUrl = trackUrl ?? soundcloudLink;
@@ -72,75 +92,29 @@ export async function POST(req: NextRequest) {
 
     if (normalizedArtistName.length > 120) {
       return NextResponse.json(
-        { success: false, error: "Name or artist name must be 120 characters or fewer." },
+        {
+          success: false,
+          error: "Name or artist name must be 120 characters or fewer.",
+        },
         { status: 400 },
       );
     }
 
-    const userChannelId = session.user?.youtubeChannelId?.toLowerCase();
-
-    // Check if user already has a submission in the queue
-    const submissionsRef = db.collection("submissions");
-    const existingSubmissions = await submissionsRef
-      .where("email", "==", session.user?.email || "")
-      .get();
-
-    // Also check by YouTube channel ID if available
-    let existingByChannel: Awaited<ReturnType<typeof submissionsRef.get>> | null = null;
-    if (userChannelId) {
-      existingByChannel = await submissionsRef
-        .where("youtubeChannelId", "==", userChannelId)
-        .get();
-    }
-
-    // Combine results and find the first existing submission
-    const allExisting: Awaited<ReturnType<typeof submissionsRef.get>>["docs"] = [];
-    existingSubmissions.forEach((doc) => allExisting.push(doc));
-    if (existingByChannel) {
-      existingByChannel.forEach((doc) => {
-        // Avoid duplicates
-        if (!allExisting.find((d) => d.id === doc.id)) {
-          allExisting.push(doc);
-        }
-      });
-    }
-
-    // If user has an existing submission and hasn't confirmed replacement
-    if (allExisting.length > 0 && !replaceExisting) {
-      const existingSubmission = allExisting[0].data();
-      return NextResponse.json({
-        success: false,
-        alreadyExists: true,
-        existingSubmissionId: allExisting[0].id,
-        existingTrackUrl:
-          existingSubmission.trackUrl ?? existingSubmission.soundcloudLink ?? null,
-      });
-    }
-
+    const normalizedEmail = session.user?.email?.trim().toLowerCase() ?? "";
+    const normalizedChannelId =
+      session.user?.youtubeChannelId?.trim().toLowerCase() ?? "";
     const isChannelOwner = session.user?.isChannelOwner ?? false;
     const isSubscriber = session.user?.isSubscriber ?? null;
+    const submissionsRef = db.collection("submissions");
+    const newSubmissionRef = submissionsRef.doc();
 
-    // Priority is disabled - all submissions go to the end of the queue
-    const derivedPriority = false;
-
-    const now = Date.now();
-    const orderBaseline = now;
-
-    const normalizeHandle = (handle?: string | null) => {
-      if (typeof handle !== "string") return null;
-      const trimmed = handle.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    };
-
-    const submission = {
+    const commonSubmission = {
       trackUrl: validatedTrack.trackUrl,
       provider: validatedTrack.provider,
       trackTitle: validatedTrack.trackTitle,
       artistName: normalizedArtistName,
-      email: session.user?.email || "",
-      priority: derivedPriority,
-      timestamp: new Date(),
-      order: orderBaseline,
+      email: normalizedEmail,
+      priority: false,
       isSubscriber,
       isChannelOwner,
       youtubeChannelId: session.user?.youtubeChannelId ?? null,
@@ -153,21 +127,158 @@ export async function POST(req: NextRequest) {
       tiktokHandle: normalizeHandle(tiktokHandle),
     };
 
-    // If replacing, update the existing submission; otherwise add a new one
-    if (replaceExisting && allExisting.length > 0) {
-      const existingDoc = allExisting[0];
-      // Preserve the original timestamp and order for queue position
-      const existingData = existingDoc.data();
-      await existingDoc.ref.update({
-        ...submission,
-        soundcloudLink: FieldValue.delete(),
-        reviewedAt: FieldValue.delete(),
-        timestamp: existingData.timestamp,
-        order: existingData.order,
+    const result = await db.runTransaction(async (transaction) => {
+      const configDoc = await transaction.get(configRef);
+      const queueSnapshot = await transaction.get(submissionsRef);
+      const config = configDoc.data();
+
+      if (config?.submissionEnabled === false) {
+        return { kind: "disabled" as const };
+      }
+
+      const allDocuments = queueSnapshot.docs;
+      const existingDocuments = allDocuments.filter((document) => {
+        const data = document.data();
+        const documentEmail =
+          typeof data.email === "string" ? data.email.toLowerCase() : "";
+        const documentChannelId =
+          typeof data.youtubeChannelId === "string"
+            ? data.youtubeChannelId.toLowerCase()
+            : "";
+        return Boolean(
+          (normalizedEmail && documentEmail === normalizedEmail) ||
+            (normalizedChannelId && documentChannelId === normalizedChannelId),
+        );
       });
-    } else {
-      // Add to Firestore using Admin SDK
-      await db.collection("submissions").add(submission);
+      const sortedExistingDocuments = sortByQueueOrder(
+        existingDocuments.map((document) => {
+          const data = document.data();
+          return {
+            document,
+            data,
+            order: data.order,
+            timestamp: data.timestamp,
+            submissionRound: data.submissionRound,
+            manualOrderOverride: data.manualOrderOverride,
+          };
+        }),
+      );
+      const wantsReplacement = Boolean(
+        replaceSubmissionId || replaceExisting,
+      );
+      const allowMultipleSubmissions =
+        config?.allowMultipleSubmissions === true;
+
+      if (
+        sortedExistingDocuments.length > 0 &&
+        !allowMultipleSubmissions &&
+        !wantsReplacement
+      ) {
+        const existingSubmissions: ExistingSubmissionSummary[] =
+          sortedExistingDocuments.map(({ document, data }) => ({
+            id: document.id,
+            trackUrl:
+              typeof data.trackUrl === "string"
+                ? data.trackUrl
+                : typeof data.soundcloudLink === "string"
+                  ? data.soundcloudLink
+                  : null,
+            trackTitle:
+              typeof data.trackTitle === "string" ? data.trackTitle : null,
+            artistName:
+              typeof data.artistName === "string" ? data.artistName : null,
+          }));
+
+        return {
+          kind: "alreadyExists" as const,
+          existingSubmissions,
+        };
+      }
+
+      if (wantsReplacement) {
+        const replacement = replaceSubmissionId
+          ? sortedExistingDocuments.find(
+              ({ document }) => document.id === replaceSubmissionId,
+            )
+          : sortedExistingDocuments[0];
+
+        if (!replacement) {
+          return { kind: "invalidReplacement" as const };
+        }
+
+        const existingData = replacement.document.data();
+        transaction.update(replacement.document.ref, {
+          ...commonSubmission,
+          soundcloudLink: FieldValue.delete(),
+          reviewedAt: FieldValue.delete(),
+          timestamp: existingData.timestamp ?? new Date(),
+          order:
+            typeof existingData.order === "number"
+              ? existingData.order
+              : getQueueOrder(existingData),
+          submissionRound: getSubmissionRound(existingData),
+          manualOrderOverride: existingData.manualOrderOverride === true,
+        });
+        transaction.set(
+          configRef,
+          { queueRevision: FieldValue.increment(1) },
+          { merge: true },
+        );
+        return { kind: "success" as const };
+      }
+
+      const existingEntries = sortedExistingDocuments.map(({ data }) => data);
+      const submissionRound =
+        allowMultipleSubmissions && existingEntries.length > 0
+          ? getNextSubmissionRound(existingEntries)
+          : 1;
+      const queueEntries = allDocuments.map((document) => document.data());
+      const order = allocateFairQueueOrder(queueEntries, submissionRound);
+
+      transaction.create(newSubmissionRef, {
+        ...commonSubmission,
+        timestamp: new Date(),
+        order,
+        submissionRound,
+        manualOrderOverride: false,
+      });
+      transaction.set(
+        configRef,
+        { queueRevision: FieldValue.increment(1) },
+        { merge: true },
+      );
+
+      return { kind: "success" as const };
+    });
+
+    if (result.kind === "disabled") {
+      return NextResponse.json(
+        {
+          success: false,
+          submissionsDisabled: true,
+          error:
+            "Submissions are currently disabled. Feedback sessions are not active at this time.",
+        },
+        { status: 403 },
+      );
+    }
+
+    if (result.kind === "invalidReplacement") {
+      return NextResponse.json(
+        { success: false, error: "The selected submission is no longer available." },
+        { status: 409 },
+      );
+    }
+
+    if (result.kind === "alreadyExists") {
+      const firstExisting = result.existingSubmissions[0];
+      return NextResponse.json({
+        success: false,
+        alreadyExists: true,
+        existingSubmissionId: firstExisting?.id ?? null,
+        existingTrackUrl: firstExisting?.trackUrl ?? null,
+        existingSubmissions: result.existingSubmissions,
+      });
     }
 
     return NextResponse.json({ success: true });

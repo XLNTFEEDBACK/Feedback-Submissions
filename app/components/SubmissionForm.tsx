@@ -8,6 +8,13 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { getTrackDisplay, parseTrackLink } from "@/lib/track-links";
 
+type ExistingSubmission = {
+  id: string;
+  trackUrl: string | null;
+  trackTitle?: string | null;
+  artistName?: string | null;
+};
+
 export default function SubmissionForm({ onModalStateChange }: { onModalStateChange?: (isModalOpen: boolean) => void }) {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -31,8 +38,9 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
     instagramHandle: string;
     tiktokHandle: string;
   } | null>(null);
-  const [, setExistingSubmissionId] = useState<string | null>(null);
+  const [existingSubmissionId, setExistingSubmissionId] = useState<string | null>(null);
   const [existingTrackUrl, setExistingTrackUrl] = useState<string | null>(null);
+  const [existingSubmissions, setExistingSubmissions] = useState<ExistingSubmission[]>([]);
 
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -135,8 +143,28 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
           instagramHandle,
           tiktokHandle,
         });
-        setExistingSubmissionId(data.existingSubmissionId);
-        setExistingTrackUrl(data.existingTrackUrl);
+        const returnedSubmissions: ExistingSubmission[] = Array.isArray(
+          data.existingSubmissions,
+        )
+          ? data.existingSubmissions.filter(
+              (submission: unknown): submission is ExistingSubmission =>
+                typeof submission === "object" &&
+                submission !== null &&
+                "id" in submission &&
+                typeof (submission as { id?: unknown }).id === "string",
+            )
+          : data.existingSubmissionId
+            ? [
+                {
+                  id: data.existingSubmissionId,
+                  trackUrl: data.existingTrackUrl ?? null,
+                },
+              ]
+            : [];
+        const firstExisting = returnedSubmissions[0] ?? null;
+        setExistingSubmissions(returnedSubmissions);
+        setExistingSubmissionId(firstExisting?.id ?? null);
+        setExistingTrackUrl(firstExisting?.trackUrl ?? null);
         setShowReplaceModal(true);
         setLoading(false);
       } else {
@@ -159,6 +187,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
       const payload: Record<string, unknown> = {
         trackUrl: pendingSubmission.trackUrl,
         replaceExisting: true,
+        replaceSubmissionId: existingSubmissionId,
         artistName: pendingSubmission.artistName.trim(),
       };
       if (pendingSubmission.instagramHandle.trim()) {
@@ -186,6 +215,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         setPendingSubmission(null);
         setExistingSubmissionId(null);
         setExistingTrackUrl(null);
+        setExistingSubmissions([]);
 
         setTimeout(() => {
           router.push("/queue");
@@ -205,6 +235,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
     setPendingSubmission(null);
     setExistingSubmissionId(null);
     setExistingTrackUrl(null);
+    setExistingSubmissions([]);
     setLoading(false);
   };
 
@@ -419,7 +450,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: "spring", duration: 0.5 }}
-              className="w-full max-w-xl overflow-hidden rounded-3xl border border-[var(--accent-amber)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-10 shadow-[0_40px_120px_-40px_rgba(255,184,0,0.4)] relative"
+              className="relative max-h-[90svh] w-full max-w-xl overflow-y-auto rounded-3xl border border-[var(--accent-amber)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] p-5 shadow-[0_40px_120px_-40px_rgba(255,184,0,0.4)] sm:p-10"
             >
               {/* Accent glow */}
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-[var(--accent-amber)] to-transparent opacity-80" />
@@ -427,31 +458,81 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
               <h2 className="text-3xl font-black uppercase tracking-[0.2em] text-white mb-4">
                 Already in Queue
               </h2>
-              <p className="text-white/60 mb-4 text-sm">
-                You already have a track in the queue:
+              <p className="mb-4 text-sm text-white/60">
+                {existingSubmissions.length > 1
+                  ? "Choose the queued track you want to replace:"
+                  : "You already have a track in the queue:"}
               </p>
+              <div className="mb-6 flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
+                {existingSubmissions.map((submission) => {
+                  const isSelected = existingSubmissionId === submission.id;
+                  const display = submission.trackUrl
+                    ? getTrackDisplay(submission.trackUrl).display
+                    : submission.trackTitle || "Queued track";
+                  return (
+                    <button
+                      key={submission.id}
+                      type="button"
+                      onClick={() => {
+                        setExistingSubmissionId(submission.id);
+                        setExistingTrackUrl(submission.trackUrl);
+                      }}
+                      aria-pressed={isSelected}
+                      className={`min-h-11 rounded-xl border p-4 text-left transition-all duration-200 ${
+                        isSelected
+                          ? "border-[var(--accent-amber)]/70 bg-[var(--accent-amber)]/10 shadow-[0_0_20px_rgba(255,184,0,0.12)]"
+                          : "border-white/10 bg-black/40 hover:border-white/25"
+                      }`}
+                    >
+                      <span className="flex items-start gap-3">
+                        <span
+                          className={`mt-1 h-3.5 w-3.5 flex-shrink-0 rounded-full border ${
+                            isSelected
+                              ? "border-[var(--accent-amber)] bg-[var(--accent-amber)] shadow-[0_0_10px_rgba(255,184,0,0.5)]"
+                              : "border-white/30"
+                          }`}
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold text-white">
+                            {submission.artistName
+                              ? `${submission.artistName} — ${display}`
+                              : display}
+                          </span>
+                          {submission.trackUrl && (
+                            <span className="mt-1 block truncate text-[10px] text-white/35">
+                              {submission.trackUrl}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+                {existingSubmissions.length === 0 && existingTrackUrl && (
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-5">
+                    <p className="text-base font-bold text-white">
+                      {getTrackDisplay(existingTrackUrl).display}
+                    </p>
+                  </div>
+                )}
+              </div>
               {existingTrackUrl && (
-                <div className="mb-6 rounded-xl border border-white/10 bg-black/40 p-5">
-                  <p className="text-base font-bold text-white mb-2">
-                    {getTrackDisplay(existingTrackUrl).display}
-                  </p>
-                  <a
-                    href={existingTrackUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[var(--accent-cyan)] hover:text-white transition-colors duration-200 break-all"
-                  >
-                    {existingTrackUrl}
-                  </a>
-                </div>
+                <a
+                  href={existingTrackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mb-6 block truncate text-xs text-[var(--accent-cyan)] transition-colors duration-200 hover:text-white"
+                >
+                  Open selected track ↗
+                </a>
               )}
               <p className="text-white/60 mb-8 text-sm">
-                Would you like to replace it with your new track?
+                Replace the selected entry with your new track? Its queue position will stay the same.
               </p>
               <div className="flex gap-3">
                 <motion.button
                   onClick={handleReplaceSubmission}
-                  disabled={loading}
+                  disabled={loading || !existingSubmissionId}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className="flex-1 rounded-full bg-gradient-to-r from-[var(--accent-amber)] to-orange-500 px-6 py-4 text-sm font-black uppercase tracking-[0.25em] text-black shadow-lg transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,184,0,0.5)] disabled:cursor-not-allowed disabled:opacity-50"

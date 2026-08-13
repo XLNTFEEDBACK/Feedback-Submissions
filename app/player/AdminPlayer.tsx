@@ -18,6 +18,7 @@ import {
   inferTrackProvider,
   isPrivateSoundCloudTrack,
   isShortenedSoundCloudLink,
+  resolveTrackArtistName,
 } from "@/lib/track-links";
 import { db } from "../firebase/firebase";
 import styles from "./player.module.css";
@@ -47,7 +48,7 @@ type SoundCloudWidget = {
   getDuration: (callback: (milliseconds: number) => void) => void;
   getPosition: (callback: (milliseconds: number) => void) => void;
   isPaused: (callback: (paused: boolean) => void) => void;
-  getCurrentSound: (callback: (sound: SoundCloudSound) => void) => void;
+  getCurrentSound: (callback: (sound: SoundCloudSound | null) => void) => void;
 };
 
 type PlaybackCheckpoint = { trackId: string; position: number };
@@ -108,10 +109,11 @@ const getFallbackMetadata = (submission: PlayerSubmission) => {
     submission.provider,
   );
   return {
-    artist:
-      submission.artistName?.trim() ||
-      trackDisplay.artist ||
-      "Unknown artist",
+    artist: resolveTrackArtistName(
+      submission.artistName,
+      null,
+      trackDisplay.artist,
+    ),
     title:
       (submission.provider === "soundcloud" ? trackDisplay.track : null) ||
       submission.trackTitle?.trim() ||
@@ -866,9 +868,13 @@ export default function AdminPlayer({
         if (!isCurrent()) return;
         const submittedArtistName = currentSubmissionRef.current?.artistName?.trim();
         setMetadata((previous) => ({
-          artist: submittedArtistName || sound.user?.username?.trim() || previous.artist,
-          title: sound.title?.trim() || previous.title,
-          artwork: sound.artwork_url || previous.artwork,
+          artist: resolveTrackArtistName(
+            submittedArtistName,
+            sound?.user?.username,
+            previous.artist,
+          ),
+          title: sound?.title?.trim() || previous.title,
+          artwork: sound?.artwork_url || previous.artwork,
         }));
       });
       if (pendingSeekRef.current > 0) {

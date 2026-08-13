@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
     // Update the submission being moved to have the new order
     await submissionRef.update({
       order: newOrder,
+      manualOrderOverride: true,
     });
 
     return NextResponse.json({ success: true });
@@ -95,4 +96,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

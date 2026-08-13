@@ -42,8 +42,14 @@ export async function POST(req: NextRequest) {
     const targetOrder = targetSnap.data()?.order ?? targetSnap.createTime?.toMillis?.() ?? Date.now();
 
     const batch = db.batch();
-    batch.update(currentRef, { order: targetOrder });
-    batch.update(targetRef, { order: currentOrder });
+    batch.update(currentRef, {
+      order: targetOrder,
+      manualOrderOverride: true,
+    });
+    batch.update(targetRef, {
+      order: currentOrder,
+      manualOrderOverride: true,
+    });
     await batch.commit();
 
     return NextResponse.json({ success: true });

@@ -6,6 +6,7 @@ import {
   getTrackDisplay,
   inferTrackProvider,
   parseTrackLink,
+  resolveTrackArtistName,
 } from "../lib/track-links.ts";
 
 test("accepts public and private SoundCloud tracks", () => {
@@ -109,4 +110,20 @@ test("extracts public SoundCloud artist and track names from the link", () => {
       display: "Uselessdubz – Dvrkstvr X Uselessdubz",
     },
   );
+});
+
+test("resolves artist names without overwriting the submitted identity", () => {
+  assert.equal(
+    resolveTrackArtistName("Preferred Name", "SoundCloud User", "url-slug"),
+    "Preferred Name",
+  );
+  assert.equal(
+    resolveTrackArtistName(null, "SoundCloud User", "url-slug"),
+    "SoundCloud User",
+  );
+  assert.equal(
+    resolveTrackArtistName(null, null, "Url Artist"),
+    "Url Artist",
+  );
+  assert.equal(resolveTrackArtistName(null, null, null), "Unknown artist");
 });

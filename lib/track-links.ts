@@ -114,6 +114,16 @@ export const getTrackDisplay = (
   return { artist: null, track: null, display: trackUrl };
 };
 
+export const resolveTrackArtistName = (
+  submittedArtistName?: string | null,
+  providerArtistName?: string | null,
+  resolvedUrlArtistName?: string | null,
+) =>
+  submittedArtistName?.trim() ||
+  providerArtistName?.trim() ||
+  resolvedUrlArtistName?.trim() ||
+  "Unknown artist";
+
 export const parseTrackLink = (input: string): TrackLinkResult => {
   const trimmed = input.trim();
   if (!trimmed) {

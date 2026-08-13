@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
 
     // Update order only (priority is disabled)
     await submissionRef.update({ 
-      order: newOrder
+      order: newOrder,
+      manualOrderOverride: true,
     });
 
     return NextResponse.json({ success: true });
@@ -66,4 +67,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
