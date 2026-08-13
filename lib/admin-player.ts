@@ -13,7 +13,6 @@ export interface PlayerSubmission {
   order?: number;
   timestamp?: QueueTimestamp | null;
   reviewedAt?: QueueTimestamp | null;
-  youtubeChannelTitle?: string | null;
 }
 
 const rankSubmission = (submission: PlayerSubmission) =>

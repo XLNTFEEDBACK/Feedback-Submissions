@@ -121,7 +121,7 @@ export default function AdminPlayer() {
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [metadata, setMetadata] = useState({
-    artist: "XLNT Feedback",
+    artist: "",
     title: "Ready to play",
     artwork: null as string | null,
   });
@@ -527,7 +527,7 @@ export default function AdminPlayer() {
       setPosition(0);
       setDuration(0);
       setStatus("caught-up");
-      setMetadata({ artist: "XLNT Feedback", title: message, artwork: null });
+      setMetadata({ artist: "", title: message, artwork: null });
     },
     [controller],
   );
@@ -738,7 +738,6 @@ export default function AdminPlayer() {
                 order: data.order,
                 timestamp: data.timestamp ?? null,
                 reviewedAt: data.reviewedAt ?? null,
-                youtubeChannelTitle: data.youtubeChannelTitle ?? null,
               },
             ];
           },
@@ -761,7 +760,7 @@ export default function AdminPlayer() {
             startTrackRef.current(savedTrack, false, checkpoint?.position ?? 0);
           } else if (sorted.length === 0) {
             setMetadata({
-              artist: "XLNT Feedback",
+              artist: "",
               title: "Queue is empty",
               artwork: null,
             });
@@ -917,7 +916,7 @@ export default function AdminPlayer() {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: metadata.title,
       artist: metadata.artist,
-      album: "XLNT Feedback Queue",
+      album: "Feedback Queue",
       artwork: metadata.artwork
         ? [{ src: metadata.artwork, sizes: "500x500" }]
         : undefined,
@@ -963,7 +962,7 @@ export default function AdminPlayer() {
 
   return (
     <main className={styles.pageShell}>
-      <article className={styles.playerPanel} aria-label="XLNT feedback player">
+      <article className={styles.playerPanel} aria-label="Feedback player">
         <div className={styles.trackHeader}>
           <div className={styles.trackInfo}>
             <p className={styles.artistName}>{metadata.artist}</p>

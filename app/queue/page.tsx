@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, SVGProps } from "react";
+import { createPortal } from "react-dom";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
-import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMiniPlayerPopupPlacement } from "@/lib/admin-player";
@@ -19,6 +19,7 @@ import {
 import { db } from "../firebase/firebase";
 import DropboxAudioPlayer from "../components/DropboxAudioPlayer";
 import Logo from "../components/Logo";
+import AdminPlayer from "../player/AdminPlayer";
 
 // ============================================================================
 // SOCIAL MEDIA LINKS CONFIGURATION
@@ -46,14 +47,27 @@ interface Submission {
   order?: number;
   timestamp?: { toMillis?: () => number } | null;
   youtubeChannelId?: string | null;
-  youtubeChannelTitle?: string | null;
-  youtubeChannelAvatarUrl?: string | null;
   submittedByRole?: string;
   isChannelOwner?: boolean;
   isSubscriber?: boolean | null;
   instagramHandle?: string | null;
   tiktokHandle?: string | null;
 }
+
+type DocumentPictureInPictureApi = {
+  requestWindow: (options: {
+    width: number;
+    height: number;
+    disallowReturnToOpener?: boolean;
+  }) => Promise<Window>;
+};
+
+const getDocumentPictureInPictureApi = () =>
+  (
+    window as unknown as {
+      documentPictureInPicture?: DocumentPictureInPictureApi;
+    }
+  ).documentPictureInPicture;
 
 const buildSocialLink = (
   handle: string | null | undefined,
@@ -252,6 +266,7 @@ export default function QueuePage() {
   const [volume, setVolume] = useState(90);
   const [isMuted, setIsMuted] = useState(false);
   const [lastVolume, setLastVolume] = useState(90);
+  const [miniPlayerWindow, setMiniPlayerWindow] = useState<Window | null>(null);
   const playbackChannelRef = useRef<BroadcastChannel | null>(null);
   const queueInstanceIdRef = useRef(
     `queue-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -261,8 +276,7 @@ export default function QueuePage() {
   const userEmail = session?.user?.email?.toLowerCase();
   const userChannelId = session?.user?.youtubeChannelId?.toLowerCase();
 
-  const openMiniPlayer = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
+  const openPopupPlayer = useCallback(() => {
     const currentScreen = window.screen as Screen & {
       availLeft?: number;
       availTop?: number;
@@ -296,6 +310,53 @@ export default function QueuePage() {
 
     window.location.assign("/player?popup=blocked");
   }, []);
+
+  const openMiniPlayer = useCallback(
+    async (event: ReactMouseEvent<HTMLAnchorElement>) => {
+      event.preventDefault();
+
+      if (miniPlayerWindow && !miniPlayerWindow.closed) {
+        miniPlayerWindow.focus();
+        return;
+      }
+
+      const pictureInPictureApi = getDocumentPictureInPictureApi();
+      if (!pictureInPictureApi) {
+        openPopupPlayer();
+        return;
+      }
+
+      try {
+        const nextWindow = await pictureInPictureApi.requestWindow({
+          width: 420,
+          height: 240,
+          disallowReturnToOpener: true,
+        });
+        nextWindow.document.title = "";
+        document
+          .querySelectorAll('link[rel="stylesheet"], style')
+          .forEach((node) =>
+            nextWindow.document.head.appendChild(node.cloneNode(true)),
+          );
+        nextWindow.document.documentElement.style.background = "#05050a";
+        nextWindow.document.body.style.margin = "0";
+        nextWindow.document.body.style.overflow = "hidden";
+        nextWindow.document.body.style.background = "#05050a";
+        nextWindow.addEventListener(
+          "pagehide",
+          () =>
+            setMiniPlayerWindow((current) =>
+              current === nextWindow ? null : current,
+            ),
+          { once: true },
+        );
+        setMiniPlayerWindow(nextWindow);
+      } catch {
+        window.location.assign("/player?popup=blocked");
+      }
+    },
+    [miniPlayerWindow, openPopupPlayer],
+  );
 
   // Check if user has a submission in the queue
   const hasSubmission = useMemo(() => {
@@ -673,8 +734,6 @@ export default function QueuePage() {
           order: data.order,
           timestamp: data.timestamp ?? null,
           youtubeChannelId: data.youtubeChannelId ?? null,
-          youtubeChannelTitle: data.youtubeChannelTitle ?? null,
-          youtubeChannelAvatarUrl: data.youtubeChannelAvatarUrl ?? null,
           submittedByRole: data.submittedByRole,
           isChannelOwner: data.isChannelOwner,
           isSubscriber: data.isSubscriber,
@@ -1222,6 +1281,9 @@ export default function QueuePage() {
           </motion.div>
         )}
       </div>
+
+      {miniPlayerWindow &&
+        createPortal(<AdminPlayer />, miniPlayerWindow.document.body)}
     </div>
   );
 }
@@ -1511,12 +1573,7 @@ const QueueItem = ({
   const instagramLink = buildSocialLink(submission.instagramHandle, "instagram");
   const tiktokLink = buildSocialLink(submission.tiktokHandle, "tiktok");
   const submittedArtistName = submission.artistName?.trim() || null;
-  const accountName =
-    submission.youtubeChannelTitle?.trim() || submission.email?.trim() || null;
-  const displayName = submittedArtistName || accountName || "Unknown artist";
-  const showAccountName =
-    Boolean(submittedArtistName && accountName) &&
-    submittedArtistName?.toLocaleLowerCase() !== accountName?.toLocaleLowerCase();
+  const displayName = submittedArtistName || "Unknown artist";
   const socialLinks = [
     instagramLink && {
       label: "Instagram",
@@ -1596,27 +1653,13 @@ const QueueItem = ({
               >
                 {position}
               </motion.div>
-            {/* Submitted artist identity, with account identity retained for context */}
+            {/* Submitted artist identity */}
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
               <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                {submission.youtubeChannelAvatarUrl && (
-                  <Image
-                    src={submission.youtubeChannelAvatarUrl}
-                    alt={displayName}
-                    width={24}
-                    height={24}
-                    className="h-6 w-6 flex-shrink-0 rounded-full border border-white/20 object-cover"
-                  />
-                )}
                 <div className="min-w-0 leading-tight">
                   <p className="truncate text-xs font-bold text-white sm:text-sm">
                     {displayName}
                   </p>
-                  {showAccountName && (
-                    <p className="truncate text-[9px] font-medium text-white/40 sm:text-[10px]">
-                      Submitted by {accountName}
-                    </p>
-                  )}
                 </div>
               </div>
               {/* Social Links Inline */}

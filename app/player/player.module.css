@@ -55,6 +55,10 @@
   white-space: nowrap;
 }
 
+.artistName:empty {
+  display: none;
+}
+
 .trackInfo h1 {
   margin: 0;
   overflow: hidden;
