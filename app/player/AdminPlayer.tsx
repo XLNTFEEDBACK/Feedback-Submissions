@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { collection, onSnapshot } from "firebase/firestore";
 import {
   appendPlaybackHistory,
@@ -44,6 +45,8 @@ type SoundCloudWidget = {
   seekTo: (milliseconds: number) => void;
   setVolume: (volume: number) => void;
   getDuration: (callback: (milliseconds: number) => void) => void;
+  getPosition: (callback: (milliseconds: number) => void) => void;
+  isPaused: (callback: (paused: boolean) => void) => void;
   getCurrentSound: (callback: (sound: SoundCloudSound) => void) => void;
 };
 
@@ -100,20 +103,32 @@ const parseCheckpoint = (): PlaybackCheckpoint | null => {
   }
 };
 
-const getFallbackMetadata = (submission: PlayerSubmission) => ({
-  artist:
-    submission.artistName?.trim() ||
-    (submission.provider === "dropbox" ? "Unknown artist" : "SoundCloud artist"),
-  title:
-    submission.trackTitle?.trim() ||
-    getTrackDisplay(submission.trackUrl, submission.provider).display,
-  artwork: null as string | null,
-});
+const getFallbackMetadata = (submission: PlayerSubmission) => {
+  const trackDisplay = getTrackDisplay(
+    submission.trackUrl,
+    submission.provider,
+  );
+  return {
+    artist:
+      submission.artistName?.trim() ||
+      trackDisplay.artist ||
+      "Unknown artist",
+    title:
+      (submission.provider === "soundcloud" ? trackDisplay.track : null) ||
+      submission.trackTitle?.trim() ||
+      trackDisplay.display,
+    artwork: null as string | null,
+  };
+};
 
 const getEffectiveVolume = (volume: number, muted: boolean) =>
   muted ? 0 : volume;
 
-export default function AdminPlayer() {
+export default function AdminPlayer({
+  portalTarget = null,
+}: {
+  portalTarget?: HTMLElement | null;
+}) {
   const [submissions, setSubmissions] = useState<PlayerSubmission[]>([]);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -886,13 +901,45 @@ export default function AdminPlayer() {
       }
     };
 
+    const syncWidgetState = () => {
+      if (!isCurrent()) return;
+      widget.getDuration((milliseconds) => {
+        if (!isCurrent() || milliseconds <= 0) return;
+        const nextDuration = milliseconds / 1000;
+        durationRef.current = nextDuration;
+        setDuration(nextDuration);
+      });
+      widget.getPosition((milliseconds) => {
+        if (!isCurrent() || milliseconds < 0) return;
+        const nextPosition = milliseconds / 1000;
+        positionRef.current = nextPosition;
+        setPosition(nextPosition);
+      });
+      widget.isPaused((paused) => {
+        if (!isCurrent()) return;
+        if (!paused) {
+          pendingAutoplayRef.current = false;
+          setStatus("playing");
+          setError(null);
+        } else if (
+          statusRef.current === "playing" &&
+          !pendingAutoplayRef.current
+        ) {
+          setStatus("paused");
+        }
+      });
+    };
+
     widget.bind("ready", ready);
     widget.bind("play", play);
     widget.bind("pause", pause);
     widget.bind("play_progress", progress);
     widget.bind("finish", finish);
     widget.bind("error", widgetError);
+    const stateSyncInterval = window.setInterval(syncWidgetState, 1000);
+    syncWidgetState();
     return () => {
+      window.clearInterval(stateSyncInterval);
       for (const event of [
         "ready",
         "play",
@@ -960,7 +1007,7 @@ export default function AdminPlayer() {
   const canPlay = Boolean(currentSubmission || nextAvailable);
   const canGoPrevious = Boolean(currentSubmission || historyRef.current.length);
 
-  return (
+  const playerSurface = (
     <main className={styles.pageShell}>
       <article className={styles.playerPanel} aria-label="Feedback player">
         <div className={styles.trackHeader}>
@@ -1087,7 +1134,11 @@ export default function AdminPlayer() {
         </div>
       </article>
 
-      <div className={styles.mediaDock} aria-hidden="true">
+    </main>
+  );
+
+  const mediaDock = (
+    <div className={styles.mediaDock} aria-hidden="true">
         {dropboxSource && (
           <audio
             key={dropboxSource.generation}
@@ -1183,8 +1234,14 @@ export default function AdminPlayer() {
             tabIndex={-1}
           />
         )}
-      </div>
-    </main>
+    </div>
+  );
+
+  return (
+    <>
+      {portalTarget ? createPortal(playerSurface, portalTarget) : playerSurface}
+      {mediaDock}
+    </>
   );
 }
 

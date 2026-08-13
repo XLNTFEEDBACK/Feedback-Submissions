@@ -96,3 +96,17 @@ test("infers legacy SoundCloud records and formats Dropbox filenames", () => {
   );
   assert.equal(getTrackDisplay(dropboxUrl, "dropbox").display, "final_master");
 });
+
+test("extracts public SoundCloud artist and track names from the link", () => {
+  assert.deepEqual(
+    getTrackDisplay(
+      "https://soundcloud.com/uselessdubz/dvrkstvr-x-uselessdubz",
+      "soundcloud",
+    ),
+    {
+      artist: "Uselessdubz",
+      track: "Dvrkstvr X Uselessdubz",
+      display: "Uselessdubz – Dvrkstvr X Uselessdubz",
+    },
+  );
+});

@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, SVGProps } from "react";
-import { createPortal } from "react-dom";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -1282,8 +1281,9 @@ export default function QueuePage() {
         )}
       </div>
 
-      {miniPlayerWindow &&
-        createPortal(<AdminPlayer />, miniPlayerWindow.document.body)}
+      {miniPlayerWindow && (
+        <AdminPlayer portalTarget={miniPlayerWindow.document.body} />
+      )}
     </div>
   );
 }
