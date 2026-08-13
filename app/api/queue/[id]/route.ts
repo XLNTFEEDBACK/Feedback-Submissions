@@ -101,12 +101,14 @@ export async function PATCH(
     const {
       trackUrl,
       soundcloudLink,
+      artistName,
       instagramHandle,
       tiktokHandle,
       priority: priorityUpdate,
     }: {
       trackUrl?: string;
       soundcloudLink?: string;
+      artistName?: string;
       instagramHandle?: string;
       tiktokHandle?: string;
       priority?: boolean;
@@ -121,6 +123,22 @@ export async function PATCH(
     }
 
     const validatedTrack = await validateTrackSubmission(submittedTrackUrl);
+    const normalizedArtistName =
+      typeof artistName === "string" ? artistName.trim() : "";
+
+    if (validatedTrack.provider === "dropbox" && !normalizedArtistName) {
+      return NextResponse.json(
+        { success: false, error: "Artist name is required for Dropbox submissions." },
+        { status: 400 },
+      );
+    }
+
+    if (normalizedArtistName.length > 120) {
+      return NextResponse.json(
+        { success: false, error: "Artist name must be 120 characters or fewer." },
+        { status: 400 },
+      );
+    }
 
     const normalizeHandle = (handle?: string | null) => {
       if (typeof handle !== "string") return null;
@@ -132,10 +150,17 @@ export async function PATCH(
       trackUrl: validatedTrack.trackUrl,
       provider: validatedTrack.provider,
       trackTitle: validatedTrack.trackTitle,
+      artistName:
+        validatedTrack.provider === "dropbox" ? normalizedArtistName : null,
       soundcloudLink: FieldValue.delete(),
       instagramHandle: normalizeHandle(instagramHandle),
       tiktokHandle: normalizeHandle(tiktokHandle),
     };
+
+    const existingTrackUrl = submissionData?.trackUrl ?? submissionData?.soundcloudLink;
+    if (existingTrackUrl !== validatedTrack.trackUrl) {
+      updateData.reviewedAt = FieldValue.delete();
+    }
 
     // If admin is editing, they can also update priority
     if (isAdmin && typeof priorityUpdate === "boolean") {

@@ -17,6 +17,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
   const isChannelOwner = session?.user?.isChannelOwner ?? false;
   const subscriberStatus = session?.user?.isSubscriber;
   const [trackUrl, setTrackUrl] = useState("");
+  const [artistName, setArtistName] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [tiktokHandle, setTiktokHandle] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -26,6 +27,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
   const [showSubmissionsClosedModal, setShowSubmissionsClosedModal] = useState(false);
   const [pendingSubmission, setPendingSubmission] = useState<{
     trackUrl: string;
+    artistName: string;
     instagramHandle: string;
     tiktokHandle: string;
   } | null>(null);
@@ -88,6 +90,9 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
       const payload: Record<string, unknown> = {
         trackUrl,
       };
+      if (artistName.trim()) {
+        payload.artistName = artistName.trim();
+      }
       if (instagramHandle.trim()) {
         payload.instagramHandle = instagramHandle.trim();
       }
@@ -106,6 +111,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
       if (data.success) {
         setSubmitted(true);
         setTrackUrl("");
+        setArtistName("");
         setInstagramHandle("");
         setTiktokHandle("");
         setShowReplaceModal(false);
@@ -120,6 +126,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
       } else if (data.alreadyExists) {
         setPendingSubmission({
           trackUrl,
+          artistName,
           instagramHandle,
           tiktokHandle,
         });
@@ -148,6 +155,9 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
         trackUrl: pendingSubmission.trackUrl,
         replaceExisting: true,
       };
+      if (pendingSubmission.artistName.trim()) {
+        payload.artistName = pendingSubmission.artistName.trim();
+      }
       if (pendingSubmission.instagramHandle.trim()) {
         payload.instagramHandle = pendingSubmission.instagramHandle.trim();
       }
@@ -166,6 +176,7 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
       if (data.success) {
         setSubmitted(true);
         setTrackUrl("");
+        setArtistName("");
         setInstagramHandle("");
         setTiktokHandle("");
         setShowReplaceModal(false);
@@ -545,6 +556,41 @@ export default function SubmissionForm({ onModalStateChange }: { onModalStateCha
               )}
             </div>
           </label>
+
+          {trackValidation?.valid && trackValidation.provider === "dropbox" && (
+            <motion.label
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="flex flex-col gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+                  Artist Name:
+                </span>
+                {!artistName.trim() && (
+                  <span className="text-xs font-bold text-red-500">*Required for Dropbox</span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={artistName}
+                  onChange={(event) => setArtistName(event.target.value)}
+                  onFocus={() => setFocusedInput("artist")}
+                  onBlur={() => setFocusedInput(null)}
+                  required
+                  maxLength={120}
+                  disabled={showSubmissionsClosedModal}
+                  className={`w-full rounded-xl border bg-black/40 px-4 py-3.5 text-sm text-white placeholder-white/40 transition-all duration-300 focus:outline-none ${
+                    focusedInput === "artist"
+                      ? "border-[var(--accent-cyan)] bg-black/60 ring-2 ring-[var(--accent-cyan)]/30 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
+                      : "border-white/10 hover:border-white/20"
+                  }`}
+                  placeholder="Name to show in the stream player"
+                />
+              </div>
+            </motion.label>
+          )}
 
           {/* Instagram and TikTok Handles */}
           <div className="grid grid-cols-2 gap-3">

@@ -38,6 +38,8 @@ interface Submission {
   trackUrl: string;
   provider: TrackProvider;
   trackTitle?: string | null;
+  artistName?: string | null;
+  reviewedAt?: { toMillis?: () => number } | null;
   email?: string;
   priority?: boolean;
   order?: number;
@@ -241,6 +243,7 @@ export default function QueuePage() {
   const prevPlayingIdRef = useRef<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTrackUrl, setEditTrackUrl] = useState("");
+  const [editArtistName, setEditArtistName] = useState("");
   const [editInstagramHandle, setEditInstagramHandle] = useState("");
   const [editTiktokHandle, setEditTiktokHandle] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -248,6 +251,10 @@ export default function QueuePage() {
   const [volume, setVolume] = useState(90);
   const [isMuted, setIsMuted] = useState(false);
   const [lastVolume, setLastVolume] = useState(90);
+  const playbackChannelRef = useRef<BroadcastChannel | null>(null);
+  const queueInstanceIdRef = useRef(
+    `queue-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 
   const isAdmin = session?.user?.isAdmin ?? false;
   const userEmail = session?.user?.email?.toLowerCase();
@@ -311,6 +318,37 @@ export default function QueuePage() {
         clearTimeout(clearConfirmTimeoutRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (!("BroadcastChannel" in window)) return;
+    const channel = new BroadcastChannel("xlnt-feedback-playback");
+    playbackChannelRef.current = channel;
+    channel.onmessage = (event: MessageEvent<{ type?: string; sender?: string }>) => {
+      if (
+        event.data?.type === "claim" &&
+        event.data.sender !== queueInstanceIdRef.current
+      ) {
+        setCurrentPlayingId(null);
+      }
+    };
+    return () => {
+      channel.close();
+      playbackChannelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("player") !== "unauthorized") return;
+    setActionError("The mini player is available to admins only.");
+    query.delete("player");
+    const nextQuery = query.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`,
+    );
   }, []);
 
   // Track last played submission when currentPlayingId changes
@@ -480,6 +518,10 @@ export default function QueuePage() {
         return next;
       });
 
+      playbackChannelRef.current?.postMessage({
+        type: "claim",
+        sender: queueInstanceIdRef.current,
+      });
       setCurrentPlayingId(id);
     },
     [currentPlayingId]
@@ -587,6 +629,8 @@ export default function QueuePage() {
           trackUrl,
           provider: inferTrackProvider(trackUrl, data.provider),
           trackTitle: data.trackTitle ?? null,
+          artistName: data.artistName ?? null,
+          reviewedAt: data.reviewedAt ?? null,
           email: data.email,
           priority: data.priority,
           order: data.order,
@@ -749,13 +793,30 @@ export default function QueuePage() {
     }
   };
 
-  const handleResetPlayed = useCallback((submissionId: string) => {
-    setPlayedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(submissionId);
-      return next;
-    });
-  }, []);
+  const handleResetPlayed = useCallback(async (submissionId: string) => {
+    if (!isAdmin || pendingActionId) return;
+    try {
+      setPendingActionId(submissionId);
+      setActionError(null);
+      const response = await fetch(`/api/queue/${submissionId}/review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewed: false }),
+      });
+      if (!response.ok) throw new Error("Failed to reset Reviewed state");
+      setPlayedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(submissionId);
+        return next;
+      });
+      setActionNotice("Submission marked unreviewed.");
+    } catch (resetError) {
+      console.error("Failed to reset Reviewed state", resetError);
+      setActionError("Failed to reset Reviewed state. Please try again.");
+    } finally {
+      setPendingActionId(null);
+    }
+  }, [isAdmin, pendingActionId]);
 
   const handleRemove = async (submissionId: string) => {
     if (!isAdmin || pendingActionId) {
@@ -785,6 +846,7 @@ export default function QueuePage() {
   const handleStartEdit = (submission: Submission) => {
     setEditingId(submission.id);
     setEditTrackUrl(submission.trackUrl);
+    setEditArtistName(submission.artistName || "");
     setEditInstagramHandle(submission.instagramHandle || "");
     setEditTiktokHandle(submission.tiktokHandle || "");
     setEditError(null);
@@ -793,6 +855,7 @@ export default function QueuePage() {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditTrackUrl("");
+    setEditArtistName("");
     setEditInstagramHandle("");
     setEditTiktokHandle("");
     setEditError(null);
@@ -810,6 +873,7 @@ export default function QueuePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           trackUrl: editTrackUrl,
+          artistName: editArtistName,
           instagramHandle: editInstagramHandle,
           tiktokHandle: editTiktokHandle,
         }),
@@ -882,8 +946,18 @@ export default function QueuePage() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="fixed top-3 right-3 sm:top-4 sm:right-4 z-10"
+        className="fixed top-3 right-3 sm:top-4 sm:right-4 z-10 flex items-center gap-2"
       >
+        {isAdmin && (
+          <Link
+            href="/player"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative overflow-hidden rounded-full border border-[var(--accent-cyan)]/40 bg-[var(--accent-cyan)]/10 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[var(--accent-cyan)] transition-all duration-300 hover:border-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/15 hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+          >
+            <span className="relative z-10 whitespace-nowrap">Mini Player</span>
+          </Link>
+        )}
         <Link
           href="/submit"
           className="group relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-3 py-1.5 sm:px-5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white/80 transition-all duration-300 hover:border-[var(--accent-cyan)] hover:text-white backdrop-blur-md hover:shadow-[0_0_20px_rgba(0,229,255,0.3)]"
@@ -1075,6 +1149,7 @@ export default function QueuePage() {
                   isExpanded={isExpanded}
                   isPlaying={isPlaying}
                   hasPlayed={playedIds.has(sub.id)}
+                  isReviewed={Boolean(sub.reviewedAt)}
                   onMove={handleMove}
                   onMoveToTop={handleMoveToTop}
                   onRemove={handleRemove}
@@ -1091,9 +1166,11 @@ export default function QueuePage() {
                   onCancelEdit={handleCancelEdit}
                   onSaveEdit={handleSaveEdit}
                   editTrackUrl={editTrackUrl}
+                  editArtistName={editArtistName}
                   editInstagramHandle={editInstagramHandle}
                   editTiktokHandle={editTiktokHandle}
                   setEditTrackUrl={setEditTrackUrl}
+                  setEditArtistName={setEditArtistName}
                   setEditInstagramHandle={setEditInstagramHandle}
                   setEditTiktokHandle={setEditTiktokHandle}
                   editLoading={editLoading}
@@ -1122,6 +1199,7 @@ const QueueItem = ({
   isExpanded,
   isPlaying,
   hasPlayed,
+  isReviewed,
   onMove,
   onMoveToTop,
   onRemove,
@@ -1138,9 +1216,11 @@ const QueueItem = ({
   onCancelEdit,
   onSaveEdit,
   editTrackUrl,
+  editArtistName,
   editInstagramHandle,
   editTiktokHandle,
   setEditTrackUrl,
+  setEditArtistName,
   setEditInstagramHandle,
   setEditTiktokHandle,
   editLoading,
@@ -1156,6 +1236,7 @@ const QueueItem = ({
   isExpanded: boolean;
   isPlaying: boolean;
   hasPlayed: boolean;
+  isReviewed: boolean;
   onMove: (id: string, direction: "up" | "down") => void;
   onMoveToTop: (id: string) => void;
   onRemove: (id: string) => void;
@@ -1172,9 +1253,11 @@ const QueueItem = ({
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   editTrackUrl: string;
+  editArtistName: string;
   editInstagramHandle: string;
   editTiktokHandle: string;
   setEditTrackUrl: (value: string) => void;
+  setEditArtistName: (value: string) => void;
   setEditInstagramHandle: (value: string) => void;
   setEditTiktokHandle: (value: string) => void;
   editLoading: boolean;
@@ -1414,6 +1497,8 @@ const QueueItem = ({
   const cardClasses = `w-full rounded-2xl border transition-all duration-300 ${
     isPlaying
       ? "border-[var(--accent-cyan)] bg-[var(--state-playing-bg)] shadow-[0_0_40px_rgba(0,229,255,0.3)] ring-2 ring-[var(--accent-cyan)]/40"
+      : isReviewed
+      ? "border-[var(--accent-cyan)]/20 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] opacity-80"
       : hasPlayed
       ? "border-[var(--accent-magenta)]/30 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)]"
       : "border-white/10 bg-gradient-to-br from-[var(--surface-card)] to-[var(--surface-dark)] hover:border-white/20"
@@ -1428,6 +1513,8 @@ const QueueItem = ({
         className={`hidden md:flex h-12 w-12 lg:h-14 lg:w-14 items-center justify-center rounded-xl font-black text-xl lg:text-2xl transition-all duration-300 flex-shrink-0 ${
           isPlaying
             ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_30px_rgba(0,229,255,0.8)] ring-2 ring-[var(--accent-cyan)]/60"
+            : isReviewed
+            ? "bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] border-2 border-[var(--accent-cyan)]/30 shadow-lg"
             : hasPlayed
             ? "bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)] border-2 border-[var(--accent-magenta)]/50 shadow-lg"
             : "bg-white/10 text-white/70 border-2 border-white/30 shadow-md"
@@ -1457,6 +1544,8 @@ const QueueItem = ({
                 className={`flex md:hidden h-9 w-9 items-center justify-center rounded-lg font-black text-base transition-all duration-300 flex-shrink-0 ${
                   isPlaying
                     ? "bg-[var(--accent-cyan)] text-black shadow-[0_0_20px_rgba(0,229,255,0.6)]"
+                    : isReviewed
+                    ? "bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] border border-[var(--accent-cyan)]/30"
                     : hasPlayed
                     ? "bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)] border border-[var(--accent-magenta)]/40"
                     : "bg-white/10 text-white/70 border border-white/20"
@@ -1519,11 +1608,15 @@ const QueueItem = ({
                 Priority
               </span>
             )}
-            {hasPlayed && !isPlaying && (
+            {(isReviewed || hasPlayed) && !isPlaying && (
               <div className="inline-flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent-magenta)]/20 border border-[var(--accent-magenta)]/40 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[var(--accent-magenta)]">
+                <span className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                  isReviewed
+                    ? "border-[var(--accent-cyan)]/30 bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]"
+                    : "border-[var(--accent-magenta)]/40 bg-[var(--accent-magenta)]/20 text-[var(--accent-magenta)]"
+                }`}>
                   <CHECK_ICON className="h-3.5 w-3.5" />
-                  Played
+                  {isReviewed ? "Reviewed" : "Played"}
                 </span>
                 {isAdmin && (
                   <motion.button
@@ -1531,7 +1624,7 @@ const QueueItem = ({
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className="inline-flex items-center justify-center rounded-md border border-white/20 bg-white/5 p-1.5 text-xs font-bold text-white/70 transition-all duration-300 hover:border-[var(--accent-magenta)]/50 hover:bg-white/10 hover:text-[var(--accent-magenta)]"
-                    aria-label="Reset played state"
+                    aria-label="Reset reviewed state"
                   >
                     <RESET_ICON className="h-3.5 w-3.5" />
                   </motion.button>
@@ -1599,6 +1692,26 @@ const QueueItem = ({
                 </p>
               )}
             </div>
+            {editTrackValidation?.valid && editTrackValidation.provider === "dropbox" && (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+                  Artist Name:
+                </label>
+                <input
+                  type="text"
+                  value={editArtistName}
+                  onChange={(event) => setEditArtistName(event.target.value)}
+                  maxLength={120}
+                  className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder-white/40 transition-all duration-300 focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/30 focus:bg-black/60"
+                  placeholder="Name to show in the stream player"
+                />
+                {!editArtistName.trim() && (
+                  <p className="text-xs font-semibold text-red-400">
+                    Artist name is required for Dropbox submissions.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
                 Instagram (optional):
@@ -1629,7 +1742,11 @@ const QueueItem = ({
             <div className="flex gap-2">
               <motion.button
                 onClick={onSaveEdit}
-                disabled={editLoading || !editTrackValidation?.valid}
+                disabled={
+                  editLoading ||
+                  !editTrackValidation?.valid ||
+                  (editTrackValidation.provider === "dropbox" && !editArtistName.trim())
+                }
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="rounded-full bg-gradient-to-r from-[var(--accent-cyan)] to-blue-500 px-5 py-2.5 text-xs font-black uppercase tracking-[0.25em] text-black transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,229,255,0.5)] disabled:cursor-not-allowed disabled:opacity-40"

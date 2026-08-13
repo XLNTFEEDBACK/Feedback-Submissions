@@ -38,12 +38,14 @@ export async function POST(req: NextRequest) {
     const {
       trackUrl,
       soundcloudLink,
+      artistName,
       instagramHandle,
       tiktokHandle,
       replaceExisting,
     }: {
       trackUrl?: string;
       soundcloudLink?: string;
+      artistName?: string;
       instagramHandle?: string;
       tiktokHandle?: string;
       replaceExisting?: boolean;
@@ -58,6 +60,22 @@ export async function POST(req: NextRequest) {
     }
 
     const validatedTrack = await validateTrackSubmission(submittedTrackUrl);
+    const normalizedArtistName =
+      typeof artistName === "string" ? artistName.trim() : "";
+
+    if (validatedTrack.provider === "dropbox" && !normalizedArtistName) {
+      return NextResponse.json(
+        { success: false, error: "Artist name is required for Dropbox submissions." },
+        { status: 400 },
+      );
+    }
+
+    if (normalizedArtistName.length > 120) {
+      return NextResponse.json(
+        { success: false, error: "Artist name must be 120 characters or fewer." },
+        { status: 400 },
+      );
+    }
 
     const userChannelId = session.user?.youtubeChannelId?.toLowerCase();
 
@@ -118,6 +136,8 @@ export async function POST(req: NextRequest) {
       trackUrl: validatedTrack.trackUrl,
       provider: validatedTrack.provider,
       trackTitle: validatedTrack.trackTitle,
+      artistName:
+        validatedTrack.provider === "dropbox" ? normalizedArtistName : null,
       email: session.user?.email || "",
       priority: derivedPriority,
       timestamp: new Date(),
@@ -142,6 +162,7 @@ export async function POST(req: NextRequest) {
       await existingDoc.ref.update({
         ...submission,
         soundcloudLink: FieldValue.delete(),
+        reviewedAt: FieldValue.delete(),
         timestamp: existingData.timestamp,
         order: existingData.order,
       });
